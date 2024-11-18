@@ -1,9 +1,11 @@
-import _cffi_backend  # type: ignore
+import _cffi_backend
 import logging
 import pathlib
 import platform
 from ._bindings import ffi
 from typing import TypeAlias
+
+NULL = ffi.NULL
 
 # Note: The library names are ordered according to the required initialization
 # sequence; i.e. UltralightCore must be loaded before WebCore, etc.
@@ -98,4 +100,5 @@ __all__ = [
     'Lib',
     'load',
     'logger',
+    'NULL',
 ]

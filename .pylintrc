@@ -48,7 +48,8 @@ variable-rgx=^([ijkvxy_]|([a-z_][a-z0-9_]{2,50})|df|dt|ok)$
 
 [pylint.ultralight_cffi/_bindings]
 disable=
-    line-too-long
+    line-too-long,
+    too-many-lines,
 
 [pylint.*.pyi]  # workaround for https://github.com/pylint-dev/pylint/issues/9096
 disable=
