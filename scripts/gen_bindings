@@ -43,16 +43,14 @@ _build_headers() {
       - \
     | _post_process \
     | clang-format \
-      > ultralight/_cffi.h
-}
-
-_build_cffi_py() {
-  .venv/bin/python scripts/_build.py
+      > ultralight_cffi/_bindings.h
 }
 
 _main() {
+  scripts/_init
   _build_headers
-  _build_cffi_py
+  .venv/bin/python scripts/_build.py
+  .venv/bin/black ultralight_cffi/_bindings.py
 }
 
 _main

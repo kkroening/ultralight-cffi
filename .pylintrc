@@ -46,7 +46,7 @@ max-statements=50
 argument-rgx=^[a-z_][a-z0-9_]{1,50}$
 variable-rgx=^([ijkvxy_]|([a-z_][a-z0-9_]{2,50})|df|dt|ok)$
 
-[pylint.ultralight/_cffi]
+[pylint.ultralight_cffi/_bindings]
 disable=
     line-too-long
 

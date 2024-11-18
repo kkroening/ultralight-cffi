@@ -1,4 +1,4 @@
-"""Sample ``ultralight-cffi``: load HTML and render as PNG.
+"""Sample :mod:`ultralight_cffi` app: load HTML and render as PNG.
 
 This is adapted from the official `Sample 1 - Render to PNG`_ and `Sample 4 -
 Javascript`_ examples - originally written in C/C++.
@@ -17,7 +17,7 @@ shared libraries show up in ``sdk/bin``.
 import os
 import pathlib
 import time
-import ultralight
+import ultralight_cffi
 from textwrap import dedent
 
 _SDK_PATH = pathlib.Path(os.environ.get('ULTRALIGHT_SDK_PATH', 'ultralight-sdk'))
@@ -46,7 +46,7 @@ _HTML = dedent(
 done = False
 
 
-@ultralight.ffi.callback(
+@ultralight_cffi.ffi.callback(
     'void(void*, struct C_View*, unsigned long long, _Bool, struct C_String*)'
 )
 def on_finish_loading(user_data, caller, frame_id, is_main_frame, url):
@@ -59,7 +59,7 @@ def on_finish_loading(user_data, caller, frame_id, is_main_frame, url):
 def main():
     global done
 
-    lib = ultralight.load(_SDK_PATH / 'bin')
+    lib = ultralight_cffi.load(_SDK_PATH / 'bin')
 
     sdk_path_str = lib.ulCreateStringUTF8(
         str(_SDK_PATH).encode(), len(str(_SDK_PATH).encode())
@@ -75,10 +75,12 @@ def main():
     view_config = lib.ulCreateViewConfig()
     lib.ulViewConfigSetInitialDeviceScale(view_config, 2.0)
     lib.ulViewConfigSetIsAccelerated(view_config, False)
-    view = lib.ulCreateView(renderer, 1600, 800, view_config, ultralight.ffi.NULL)
+    view = lib.ulCreateView(renderer, 1600, 800, view_config, ultralight_cffi.ffi.NULL)
     lib.ulDestroyViewConfig(view_config)
 
-    lib.ulViewSetFinishLoadingCallback(view, on_finish_loading, ultralight.ffi.NULL)
+    lib.ulViewSetFinishLoadingCallback(
+        view, on_finish_loading, ultralight_cffi.ffi.NULL
+    )
 
     print('Starting Run(), waiting for page to load...')
 

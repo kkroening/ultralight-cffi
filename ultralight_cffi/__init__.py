@@ -2,7 +2,7 @@ import _cffi_backend  # type: ignore
 import logging
 import pathlib
 import platform
-from ._cffi import ffi
+from ._bindings import ffi
 from typing import TypeAlias
 
 # Note: The library names are ordered according to the required initialization
@@ -28,7 +28,7 @@ _WINDOWS_LIBRARY_NAMES = [
 
 
 logger = logging.getLogger(__name__)
-"""A default logger for the ``ultralight-cffi`` wrapper to log debug info to.
+"""A default logger for the :mod:`ultralight_cffi` wrapper to log debug info to.
 
 Adjust this as desired by setting the log level::
 

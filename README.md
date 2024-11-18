@@ -46,10 +46,10 @@ The following example demonstrates how to initialize `ultralight-cffi`, load som
 ```python
 import os
 import pathlib
-import ultralight
+import ultralight_cffi
 
 sdk_path = pathlib.Path(os.environ.get('ULTRALIGHT_SDK_PATH', 'ultralight-sdk'))
-lib = ultralight.load(sdk_path / 'bin')
+lib = ultralight_cffi.load(sdk_path / 'bin')
 
 sdk_path_str = lib.ulCreateStringUTF8(
     str(sdk_path).encode(), len(str(sdk_path).encode())
@@ -65,7 +65,7 @@ lib.ulDestroyConfig(config)
 view_config = lib.ulCreateViewConfig()
 lib.ulViewConfigSetInitialDeviceScale(view_config, 2.0)
 lib.ulViewConfigSetIsAccelerated(view_config, False)
-view = lib.ulCreateView(renderer, 1600, 800, view_config, ultralight.ffi.NULL)
+view = lib.ulCreateView(renderer, 1600, 800, view_config, ultralight_cffi.ffi.NULL)
 lib.ulDestroyViewConfig(view_config)
 ```
 
@@ -77,7 +77,7 @@ lib.ulDestroyViewConfig(view_config)
 ```python
 done = False
 
-@ultralight.ffi.callback(
+@ultralight_cffi.ffi.callback(
     'void(void*, struct C_View*, unsigned long long, _Bool, struct C_String*)'
 )
 def on_finish_loading(user_data, caller, frame_id, is_main_frame, url):
@@ -86,7 +86,7 @@ def on_finish_loading(user_data, caller, frame_id, is_main_frame, url):
         print('Our page has loaded!')
         done = True
 
-lib.ulViewSetFinishLoadingCallback(view, on_finish_loading, ultralight.ffi.NULL)
+lib.ulViewSetFinishLoadingCallback(view, on_finish_loading, ultralight_cffi.ffi.NULL)
 ```
 
 #### Load HTML:
@@ -122,22 +122,22 @@ See [`samples/html_to_png.py`](samples/html_to_png.py).
 
 ### Repo structure
 
-This library consists of an `ultralight` Python package, which has a thin wrapper around an auto-generated `ultralight/_cffi.py`:
+This library consists of an `ultralight_cffi` Python package, which has a thin wrapper around an auto-generated `ultralight_cffi/_cffi.py`:
 
 ```
 ├── ultralight-api/         Official Ultralight-API headers, as a git submodule
 │
-├── ultralight/             The main Python library source code
+├── ultralight_cffi/        The main Python library source code
 │   ├── __init__.py         Wrapper module
-│   ├── _cffi.h             Auto-generated Ultralight preprocessed headers
-│   ├── _cffi.py            Auto-generated Ultralight CFFI bindings
+│   ├── _bindings.h         Auto-generated Ultralight preprocessed headers
+│   ├── _bindings.py        Auto-generated Ultralight CFFI bindings
 │   └──  ...                Additional wrapper logic
 │
 ├── scripts/
 │   ├── _build.py           Runs CFFI builder
 │   ├── ci                  Runs tests, mypy, pylint, etc. - same as GHA CI, but local
 │   ├── fetch_sdk           Fetches the Ultralight SDK (experimental/development-only!)
-│   └── gen_bindings        Re-generates `ultralight/_cffi.*`
+│   └── gen_bindings        Re-generates `ultralight_cffi/_bindings.*`
 │
 ├── README.md               Where you are right now
 ├── pyproject.toml          Poetry-based package definitions/settings
@@ -146,12 +146,12 @@ This library consists of an `ultralight` Python package, which has a thin wrappe
 
 The Ultralight-API headers are fetched as a git submodule for local development of this library, but are not required for end-user installation of `ultralight-cffi`.
 
-`scripts/gen_bindings` transforms the official headers into a consolidated `ultralight/_cffi.h` using `gcc`'s preprocessor (running in Docker, for consistency), and a small amount of post-processing.  Then it runs `scripts/_build.py` to run the CFFI builder to generate `_cffi.py`.
+`scripts/gen_bindings` transforms the official headers into a consolidated `ultralight/_bindings.h` using `gcc`'s preprocessor (running in Docker, for consistency), and a small amount of post-processing.  Then it runs `scripts/_build.py` to run the CFFI builder to generate `_bindings.py`.
 
-Although `ultralight/_cffi.h` and `ultralight/_cffi.py` are auto-generated, they're committed to version control so that installing `ultralight-cffi` is as frictionless as possible.
+Although `ultralight/_bindings.h` and `ultralight/_bindings.py` are auto-generated, they're committed to version control so that installing `ultralight-cffi` is as frictionless as possible.
 
 > [!NOTE]
-> `ultralight/_cffi.h` isn't required at runtime, but it's included in the `ultralight` Python package anyways for the sake of documentation and history.
+> `ultralight/_bindings.h` isn't required at runtime, but it's included in the `ultralight` Python package anyways for the sake of documentation and history.
 
 CFFI's _[Out-of-line, ABI level](https://cffi.readthedocs.io/en/latest/overview.html#out-of-line-abi-level)_ mode (rather than API mode) is used because it avoids the need to have the Ultralight shared libraries available for the distribution and installation of this library, which avoids the massive can of worms for maintaining platform-specific releases and dealing with licensing gotchas.  Although it may be appealing to be able to simply `pip install` this package and have everything magically work, it would guarantee that this package is broken 99.99% of the time.  On the other hand, having this library deal only with the CFFI binding generation makes the surface area of this library minuscule, and easier to maintain and fork - or at least serve as an example.
 
@@ -166,7 +166,7 @@ CFFI's _[Out-of-line, ABI level](https://cffi.readthedocs.io/en/latest/overview.
 git submodule update --init
 ```
 
-#### Generate `_ultralight/_cffi.h` and `_ultralight/_cffi.py`:
+#### Generate `_ultralight/_bindings.h` and `_ultralight/_bindings.py`:
 
 ```bash
 ./scripts/gen_bindings
@@ -184,7 +184,7 @@ git submodule update --init
 #### Commit and release:
 
 ```bash
-git add ultralight/_cffi.*
+git add ultralight_cffi/_bindings.*
 poetry version x.x.x
 git commit -m 'Re-generate bindings'
 git tag x.x.x

@@ -2,7 +2,7 @@
 authors = ["Karl Kroening <karlk@kralnet.us>"]
 description = ""
 name = "ultralight-cffi"
-packages = [{include = "ultralight"}]
+packages = [{include = "ultralight_cffi"}]
 readme = "README.md"
 version = "0.0.0"
 
@@ -34,8 +34,8 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-include = '^/(ultralight|tests)/.*\.pyi?$'
-exclude = '^/ultralight/_cffi.py$'  # TBD
+include = '^/(ultralight_cffi|tests)/.*\.pyi?$'
+exclude = '^/ultralight_cffi/_cffi.py$'  # TBD
 skip-string-normalization = true
 target_version = ['py311']
 
@@ -52,7 +52,7 @@ use_parentheses = true
 
 [tool.mypy]
 extra_checks = true
-files = 'ultralight'
+files = 'ultralight_cffi'
 mypy_path = 'stubs'
 namespace_packages = true
 no_implicit_optional = true

@@ -23,7 +23,7 @@ _black() {
 
 _isort() {
   base::show_banner "Applying isort ..."
-  poetry run isort ultralight tests
+  poetry run isort ultralight_cffi tests
 }
 
 _main() {

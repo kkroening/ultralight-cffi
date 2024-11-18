@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE}")/_base.sh"
+
+_init() {
+  base::show_banner "Initializing workarea"
+  poetry install
+  scripts/fetch_sdk
+}
+
+_main() {
+  if [[ -d .venv && -r ultralight-sdk ]]; then
+    :  # Already initialized; don't bother re-initializing.
+  else
+    cd "$(dirname "${BASH_SOURCE}")/.."
+    _init
+  fi
+}
+
+_main "$@"
