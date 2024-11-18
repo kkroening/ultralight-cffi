@@ -1,4 +1,4 @@
-"""Sample :mod:`ultralight_cffi` app: load HTML and render as PNG.
+""":mod:`ultralight_cffi` example: Load HTML and render as PNG.
 
 This is adapted from the official `Sample 1 - Render to PNG`_ and `Sample 4 -
 Javascript`_ examples - originally written in C/C++.

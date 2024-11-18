@@ -28,6 +28,7 @@ pytest-xdist = "^3"
 types-mock = "^5"
 types-pygments = "^2"
 types-tensorflow = "^2"
+pillow = "^11.0.0"
 
 [build-system]
 requires = ["poetry-core"]
