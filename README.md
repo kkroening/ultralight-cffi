@@ -67,9 +67,7 @@ renderer = lib.ulCreateRenderer(config)
 lib.ulDestroyConfig(config)
 
 view_config = lib.ulCreateViewConfig()
-lib.ulViewConfigSetInitialDeviceScale(view_config, 2.0)
-lib.ulViewConfigSetIsAccelerated(view_config, False)
-view = lib.ulCreateView(renderer, 1600, 800, view_config, ultralight_cffi.ffi.NULL)
+view = lib.ulCreateView(renderer, 800, 600, view_config, ultralight_cffi.NULL)
 lib.ulDestroyViewConfig(view_config)
 ```
 
@@ -81,7 +79,7 @@ lib.ulDestroyViewConfig(view_config)
 ```python
 done = False
 
-@ultralight_cffi.ffi.callback(
+@ultralight_cffi.callback(
     'void(void*, struct C_View*, unsigned long long, _Bool, struct C_String*)'
 )
 def on_finish_loading(user_data, caller, frame_id, is_main_frame, url):
@@ -90,7 +88,7 @@ def on_finish_loading(user_data, caller, frame_id, is_main_frame, url):
         print('Our page has loaded!')
         done = True
 
-lib.ulViewSetFinishLoadingCallback(view, on_finish_loading, ultralight_cffi.ffi.NULL)
+lib.ulViewSetFinishLoadingCallback(view, on_finish_loading, ultralight_cffi.NULL)
 ```
 
 #### Load HTML:

@@ -10,7 +10,7 @@
 /build/
 /build/
 /dist/
-/result.png
+/result*.png
 /src
 /ultralight-sdk
 src

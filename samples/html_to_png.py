@@ -14,39 +14,18 @@ shared libraries show up in ``sdk/bin``.
     https://github.com/ultralight-ux/Ultralight/tree/master/samples
 """
 
+import contextlib
 import os
 import pathlib
 import time
 import ultralight_cffi
-from textwrap import dedent
 
 _SDK_PATH = pathlib.Path(os.environ.get('ULTRALIGHT_SDK_PATH', 'ultralight-sdk'))
-
-_HTML = dedent(
-    '''
-    <html>
-      <head>
-        <style type="text/css">
-          * { -webkit-user-select: none; }
-          body {
-            font-family: -apple-system, 'Segoe UI', Ubuntu, Arial, sans-serif;
-            text-align: center;
-            background: linear-gradient(#FFF, #DDD);
-            padding: 2em;
-          }
-        </style>
-      </head>
-      <body>
-        <h1>Hello, World!</h>
-      </body>
-    </html>
-    '''
-).encode('utf-8')
 
 done = False
 
 
-@ultralight_cffi.ffi.callback(
+@ultralight_cffi.callback(
     'void(void*, struct C_View*, unsigned long long, _Bool, struct C_String*)'
 )
 def on_finish_loading(user_data, caller, frame_id, is_main_frame, url):
@@ -73,32 +52,35 @@ def main():
     lib.ulDestroyConfig(config)
 
     view_config = lib.ulCreateViewConfig()
-    lib.ulViewConfigSetInitialDeviceScale(view_config, 2.0)
-    lib.ulViewConfigSetIsAccelerated(view_config, False)
-    view = lib.ulCreateView(renderer, 1600, 800, view_config, ultralight_cffi.ffi.NULL)
+    view = lib.ulCreateView(renderer, 800, 600, view_config, ultralight_cffi.NULL)
     lib.ulDestroyViewConfig(view_config)
 
-    lib.ulViewSetFinishLoadingCallback(
-        view, on_finish_loading, ultralight_cffi.ffi.NULL
-    )
+    with contextlib.ExitStack() as exit_stack:
+        exit_stack.callback(lib.ulDestroyView, view)
 
-    print('Starting Run(), waiting for page to load...')
+        lib.ulViewSetFinishLoadingCallback(
+            view, on_finish_loading, ultralight_cffi.NULL
+        )
 
-    html_obj = lib.ulCreateStringUTF8(_HTML, len(_HTML))
-    lib.ulViewLoadHTML(view, html_obj)
+        print('Starting Run(), waiting for page to load...')
 
-    while not done:
-        lib.ulUpdate(renderer)
-        time.sleep(0.01)
+        html = '<html><body><h1>Hello, World!</h1></body></html>'.encode()
+        html_str = lib.ulCreateStringUTF8(html, len(html))
+        lib.ulViewLoadHTML(view, html_str)
+        lib.ulDestroyString(html_str)
 
-    lib.ulRender(renderer)
-    surface = lib.ulViewGetSurface(view)
-    bitmap = lib.ulBitmapSurfaceGetBitmap(surface)
+        while not done:
+            lib.ulUpdate(renderer)
+            time.sleep(0.01)
 
-    out_filename = 'result.png'
-    lib.ulBitmapWritePNG(bitmap, out_filename.encode())
+        lib.ulRender(renderer)
+        surface = lib.ulViewGetSurface(view)
+        bitmap = lib.ulBitmapSurfaceGetBitmap(surface)
 
-    print(f'Saved a render of our page to {out_filename}.')
+        out_filename = 'result.png'
+        lib.ulBitmapWritePNG(bitmap, out_filename.encode())
+
+        print(f'Saved a render of our page to {out_filename}.')
 
 
 if __name__ == '__main__':
