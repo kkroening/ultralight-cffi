@@ -1,7 +1,6 @@
 import ultralight_cffi
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Any
 from typing import Self
 from typing_extensions import Buffer
 
@@ -10,13 +9,12 @@ from typing_extensions import Buffer
 class MemorySurface(ultralight_cffi.CustomSurface):
     width: int
     height: int
-    pixels: bytearray = field(init=False, repr=False)
-    _handle: Any = field(default=None, init=False)
 
+    pixels: bytearray = field(init=False, repr=False)
     locked: bool = False
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super().__init__()
         self.pixels = bytearray(self.width * self.height * 4)
 
     @classmethod

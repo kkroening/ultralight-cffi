@@ -4,11 +4,10 @@
 
 import os
 import pathlib
-import PIL
+import PIL.Image
 import ultralight_cffi
 from dataclasses import dataclass
 from dataclasses import field
-from typing import Any
 from typing import Self
 from typing_extensions import Buffer
 
@@ -19,12 +18,12 @@ _SDK_PATH = pathlib.Path(os.environ.get('ULTRALIGHT_SDK_PATH', 'ultralight-sdk')
 class MemorySurface(ultralight_cffi.CustomSurface):
     width: int
     height: int
+
     pixels: bytearray = field(init=False, repr=False)
     row_bytes: int = field(init=False)
-    _handle: Any = field(default=None, init=False)
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        super().__init__()
         self.row_bytes = self.width * 4  # Assume BGRA 32-bit format (4 bytes per pixel)
         self.pixels = bytearray(self.row_bytes * self.height)
 

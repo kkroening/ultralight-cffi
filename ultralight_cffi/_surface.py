@@ -3,14 +3,12 @@ import inspect
 from . import _base
 from ._bindings import ffi
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 from typing import ClassVar
 from typing import Self
 from typing_extensions import Buffer
 
 
-@dataclass
 class CustomSurface(abc.ABC):
     """Python-level abstraction for Pythonically defining user-defined, custom surface
     implementations using ordinary Python (data)classes.
@@ -29,7 +27,7 @@ class CustomSurface(abc.ABC):
 
     _handle: Any
 
-    def __post_init__(self) -> None:
+    def __init__(self) -> None:
         self._handle = ffi.new_handle(self)
 
     @classmethod
