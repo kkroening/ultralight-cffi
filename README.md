@@ -1,4 +1,4 @@
-# [Ultralight](https://ultralig.ht/) CFFI bindings
+# [Ultralight](https://ultralig.ht/) CFFI bindings (Python)
 
 <img src="https://ultralig.ht/media/ul_logo.webp" alt="Ultralight Logo" width="30%"/>
 
