@@ -3,10 +3,42 @@ import logging
 import pathlib
 import platform
 from ._bindings import ffi
+from cffi import FFI
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+from typing import Any
 from typing import TypeAlias
+from typing import TypeVar
 
 NULL = ffi.NULL
-callback = ffi.callback
+
+_T = TypeVar('_T')
+
+if TYPE_CHECKING:  # CFFI type annotation workarounds
+
+    # The official `types-cffi` stubs massacre the signature of the decorated method,
+    # so this signature serves as a replacement for more reliable static typing, but
+    # with no runtime effect.
+
+    def callback(
+        cdecl: str | FFI.CType,
+        *,
+        error: Any = None,
+        onerror: Callable[[Exception, Any, Any], None] | None = None,
+    ) -> Callable[[_T], _T]:
+        def wrap(func: _T) -> _T:
+            return func
+
+        return wrap
+
+    # FFI.CData is not available at runtime, so define an alias to be used for static
+    # typing without causing a meltdown at runtime.
+
+    CData: TypeAlias = FFI.CData
+else:
+    callback = ffi.callback
+    CData: TypeAlias = Any
+
 
 # Note: The library names are ordered according to the required initialization
 # sequence; i.e. UltralightCore must be loaded before WebCore, etc.

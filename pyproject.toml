@@ -29,6 +29,7 @@ types-mock = "^5"
 types-pygments = "^2"
 types-tensorflow = "^2"
 pillow = "^11.0.0"
+types-cffi = "^1.16.0.20240331"
 
 [build-system]
 requires = ["poetry-core"]

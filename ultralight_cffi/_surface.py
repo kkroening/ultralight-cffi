@@ -1,12 +1,56 @@
 import abc
 import inspect
 from . import _base
+from ._base import CData
 from ._bindings import ffi
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
 from typing import Self
+from typing import TypeAlias
+from typing import cast
 from typing_extensions import Buffer
+
+# TODO: ideally generate these supplemental annotations automatically; written by hand
+# for now.
+
+if TYPE_CHECKING:
+    ULSurfaceDefinitionCreateCallback: TypeAlias = Callable[[int, int], CData]
+    ULSurfaceDefinitionDestroyCallback: TypeAlias = Callable[[CData], None]
+    ULSurfaceDefinitionGetWidthCallback: TypeAlias = Callable[[CData], int]
+    ULSurfaceDefinitionGetHeightCallback: TypeAlias = Callable[[CData], int]
+    ULSurfaceDefinitionGetRowBytesCallback: TypeAlias = Callable[[CData], int]
+    ULSurfaceDefinitionGetSizeCallback: TypeAlias = Callable[[CData], int]
+    ULSurfaceDefinitionLockPixelsCallback: TypeAlias = Callable[[CData], CData]
+    ULSurfaceDefinitionUnlockPixelsCallback: TypeAlias = Callable[[CData], None]
+    ULSurfaceDefinitionResizeCallback: TypeAlias = Callable[[CData, int, int], None]
+
+    class ULSurfaceDefinition:
+        create: ULSurfaceDefinitionCreateCallback
+        destroy: ULSurfaceDefinitionDestroyCallback
+        get_width: ULSurfaceDefinitionGetWidthCallback
+        get_height: ULSurfaceDefinitionGetHeightCallback
+        get_row_bytes: ULSurfaceDefinitionGetRowBytesCallback
+        get_size: ULSurfaceDefinitionGetSizeCallback
+        lock_pixels: ULSurfaceDefinitionLockPixelsCallback
+        unlock_pixels: ULSurfaceDefinitionUnlockPixelsCallback
+        resize: ULSurfaceDefinitionResizeCallback
+
+else:
+    ULSurfaceDefinitionCreateCallback: TypeAlias = Any
+    ULSurfaceDefinitionDestroyCallback: TypeAlias = Any
+    ULSurfaceDefinitionGetWidthCallback: TypeAlias = Any
+    ULSurfaceDefinitionGetHeightCallback: TypeAlias = Any
+    ULSurfaceDefinitionGetRowBytesCallback: TypeAlias = Any
+    ULSurfaceDefinitionGetSizeCallback: TypeAlias = Any
+    ULSurfaceDefinitionLockPixelsCallback: TypeAlias = Any
+    ULSurfaceDefinitionUnlockPixelsCallback: TypeAlias = Any
+    ULSurfaceDefinitionResizeCallback: TypeAlias = Any
+
+    ULSurfaceDefinition: TypeAlias = Any
+
+CustomSurfaceHandle: TypeAlias = CData
 
 
 class CustomSurface(abc.ABC):
@@ -14,7 +58,7 @@ class CustomSurface(abc.ABC):
     implementations using ordinary Python (data)classes.
     """
 
-    _cb__create: ClassVar[Callable[[Any, int, int], Any] | None] = None
+    _cb__create: ClassVar[ULSurfaceDefinitionCreateCallback | None] = None
     """A subclass-specific reference to the creation callback.
 
     Unlike the other custom surface callbacks that have only a single definition (e.g.
@@ -25,13 +69,13 @@ class CustomSurface(abc.ABC):
     method.  See :meth:`_generate_cb__create`.
     """
 
-    _handle: Any
+    _handle: CustomSurfaceHandle
 
     def __init__(self) -> None:
         self._handle = ffi.new_handle(self)
 
     @classmethod
-    def from_user_data(cls, user_data: Any) -> Self:
+    def from_user_data(cls, user_data: CData) -> Self:
         obj = ffi.from_handle(user_data)
         if not isinstance(obj, cls):
             raise TypeError(
@@ -86,56 +130,56 @@ class CustomSurface(abc.ABC):
         raise NotImplementedError()
 
     @staticmethod
-    @ffi.callback('void(void*)')
-    def _cb__destroy(user_data: Any) -> None:
+    @_base.callback('void(void*)')
+    def _cb__destroy(user_data: CData) -> None:
         surface = ffi.from_handle(user_data)
         surface.destroy()
         del surface
 
     @staticmethod
-    @ffi.callback('unsigned int(void*)')
-    def _cb__get_width(user_data: Any) -> int:
+    @_base.callback('unsigned int(void*)')
+    def _cb__get_width(user_data: CData) -> int:
         surface: CustomSurface = ffi.from_handle(user_data)
         return surface.get_width()
 
     @staticmethod
-    @ffi.callback('unsigned int(void*)')
-    def _cb__get_height(user_data: Any) -> int:
+    @_base.callback('unsigned int(void*)')
+    def _cb__get_height(user_data: CData) -> int:
         surface: CustomSurface = ffi.from_handle(user_data)
         return surface.get_height()
 
     @staticmethod
-    @ffi.callback('unsigned int(void*)')
-    def _cb__get_row_bytes(user_data: Any) -> int:
+    @_base.callback('unsigned int(void*)')
+    def _cb__get_row_bytes(user_data: CData) -> int:
         surface: CustomSurface = ffi.from_handle(user_data)
         return surface.get_row_bytes()
 
     @staticmethod
-    @ffi.callback('size_t(void*)')
-    def _cb__get_size(user_data: Any) -> int:
+    @_base.callback('size_t(void*)')
+    def _cb__get_size(user_data: CData) -> int:
         surface: CustomSurface = ffi.from_handle(user_data)
         return surface.get_size()
 
     @staticmethod
-    @ffi.callback('void*(void*)')
-    def _cb__lock_pixels(user_data: Any) -> Any:
+    @_base.callback('void*(void*)')
+    def _cb__lock_pixels(user_data: CData) -> Any:
         surface: CustomSurface = ffi.from_handle(user_data)
         return ffi.from_buffer(surface.lock_pixels())
 
     @staticmethod
-    @ffi.callback('void(void*)')
-    def _cb__unlock_pixels(user_data: Any) -> None:
+    @_base.callback('void(void*)')
+    def _cb__unlock_pixels(user_data: CData) -> None:
         surface: CustomSurface = ffi.from_handle(user_data)
         surface.unlock_pixels()
 
     @staticmethod
-    @ffi.callback('void(void*, unsigned int, unsigned int)')
-    def _cb__resize(user_data: Any, width: int, height: int) -> None:
+    @_base.callback('void(void*, unsigned int, unsigned int)')
+    def _cb__resize(user_data: CData, width: int, height: int) -> None:
         surface: CustomSurface = ffi.from_handle(user_data)
         return surface.resize(width, height)
 
     @classmethod
-    def _generate_cb__create(cls) -> Any:
+    def _generate_cb__create(cls) -> ULSurfaceDefinitionCreateCallback:
         """Dynamically generates a creation callback for the class.
 
         The other callbacks can all be singletons since they dispatch to the appropriate
@@ -147,16 +191,18 @@ class CustomSurface(abc.ABC):
         a class variable in order to prevent premature garbage collection.
         """
 
-        @ffi.callback('void*(unsigned int, unsigned int)')
-        def _cb__create(width: int, height: int) -> Any:
+        @_base.callback('void*(unsigned int, unsigned int)')
+        def _cb__create(width: int, height: int) -> CData:
             surface = cls.create(width, height)
             return surface._handle  # pylint: disable=protected-access
 
         return _cb__create
 
     @classmethod
-    def get_definition(cls) -> object:
-        defn = ffi.new('ULSurfaceDefinition*')
+    def get_definition(cls) -> ULSurfaceDefinition:
+        defn: ULSurfaceDefinition = cast(
+            ULSurfaceDefinition, ffi.new('ULSurfaceDefinition*')
+        )
         if inspect.isabstract(cls):
             raise TypeError(
                 f'Unable to generate ULSurfaceDefinition for abstract {cls}'
@@ -170,6 +216,7 @@ class CustomSurface(abc.ABC):
         ):
             cls._cb__create = cls._generate_cb__create()
 
+        assert cls._cb__create is not None
         defn.create = cls._cb__create
         defn.destroy = cls._cb__destroy
         defn.get_width = cls._cb__get_width
