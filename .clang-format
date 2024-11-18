@@ -1,0 +1,21 @@
+# This opinionated clang style aims to make PRs reasonably diffable - e.g. by avoiding
+# hanging indentation like the plague, etc. - while being roughly Python-esque and
+# resembling Black code style.
+
+AlignAfterOpenBracket: AlwaysBreak
+AlignOperands: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortFunctionsOnASingleLine: None
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+BinPackArguments: false
+BinPackParameters: false
+BreakConstructorInitializers: BeforeComma
+BreakFunctionDefinitionParameters: true
+ColumnLimit: 88
+DerivePointerAlignment: false
+IndentWrappedFunctionNames: false
+PenaltyBreakBeforeFirstCallParameter: 0
+PenaltyReturnTypeOnItsOwnLine: 0
+PointerAlignment: Left
+SeparateDefinitionBlocks: Always

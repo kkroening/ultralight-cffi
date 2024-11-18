@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+. "$(dirname "${BASH_SOURCE}")/_base.sh"
+
+_BASE_URL="https://ultralight-files.sfo3.cdn.digitaloceanspaces.com"
+_SDK_DIR="./ultralight-sdk"
+
+_get_download_url() {
+  local os=""
+  local arch=""
+
+  case "$(uname -s)" in
+    Linux)
+      os="linux"
+      ;;
+    Darwin)
+      os="mac"
+      ;;
+    CYGWIN* | MINGW* | MSYS* | Windows_NT)
+      os="win"
+      ;;
+    *)
+      echo "Unsupported operating system: $(uname -s)" >&2
+      return 1
+      ;;
+  esac
+
+  case "$(uname -m)" in
+    x86_64)
+      arch="x64"
+      ;;
+    arm64 | aarch64)
+      arch="arm64"
+      ;;
+    *)
+      echo "Unsupported architecture: $(uname -m)" >&2
+      return 1
+      ;;
+  esac
+
+  echo "${_BASE_URL}/ultralight-sdk-1.4.0b-${os}-${arch}.7z"
+}
+
+_fetch_sdk() {
+  base::ensure_which 7zz
+  base::ensure_which curl
+
+  local download_url
+  download_url="$(_get_download_url)" || return
+
+  base::log_info "Fetching Ultralight SDK..."
+  curl -L -o ultralight-sdk.7z "${download_url}"
+
+  base::log_info "Extracting Ultralight SDK to ${_SDK_DIR} ..."
+  mkdir -p "${_SDK_DIR}"
+  7zz x ultralight-sdk.7z -o"${_SDK_DIR}"
+  rm ultralight-sdk.7z
+}
+
+_main() {
+  cd "${BASE__ROOT_DIR}"
+
+  if [[ -r "${_SDK_DIR}" ]]; then
+    base::log_info "Nothing to do. SDK directory already exists: ${_SDK_DIR}"
+  else
+    _fetch_sdk
+  fi
+}
+
+_main

@@ -1,0 +1,6 @@
+[submodule "Ultralight-API"]
+	path = Ultralight-API
+	url = git@github.com:ultralight-ux/Ultralight-API.git
+[submodule "ultralight-api"]
+	path = ultralight-api
+	url = git@github.com:ultralight-ux/Ultralight-API.git

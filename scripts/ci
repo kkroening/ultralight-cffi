@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+. "$(dirname "${BASH_SOURCE}")/_base.sh"
+
+_init() {
+  base::show_banner "Initializing workarea"
+  poetry install
+  scripts/fetch_sdk
+}
+
+_black() {
+  base::show_banner 'Running Black ...'
+  poetry run black \
+    . \
+    --color \
+    || return
+}
+
+_isort() {
+  base::show_banner 'Running isort ...'
+  poetry run isort \
+    --color \
+    ultralight \
+    tests \
+    || return
+}
+
+_mypy() {
+  base::show_banner "Running mypy"
+  poetry run mypy \
+    || return
+}
+
+_pylint() {
+  base::show_banner 'Running pylint ...'
+  poetry run pylint ultralight \
+    || return
+}
+
+_pytest() (
+  base::show_banner "Running pytest"
+  poetry run pytest \
+    -p no:only \
+    --strict-markers \
+    -vv \
+    "$@" \
+    || return
+)
+
+_main() {
+  cd "$(dirname "${BASH_SOURCE}")/.."
+
+  if ! (
+    _init || return
+    _mypy || return
+    _pytest "$@" || return
+    _pylint || return
+    _isort || return
+    _black || return
+  ); then
+    base::abort 'Failed; aborting.' >&2
+  else
+    base::show_banner "Done."
+  fi
+}
+
+_main "$@"

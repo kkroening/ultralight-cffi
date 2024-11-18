@@ -1,0 +1,26 @@
+name: CI
+on:
+  push
+jobs:
+  pytest:
+    runs-on: ubuntu-22.04
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/init
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y 7zip
+
+      - name: Download and extract Ultralight SDK
+        run: ./scripts/fetch_sdk
+
+      - name: Run pytest
+        run: |
+          poetry run pytest \
+            -p no:only \
+            --strict-markers \
+            -vv

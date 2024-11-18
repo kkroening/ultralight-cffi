@@ -1,0 +1,17 @@
+*.bak
+*.DS_Store
+*.egg-info
+*.log
+*.pyc
+*.so
+/.cookie
+/.idea/
+/.venv/
+/build/
+/build/
+/dist/
+/result.png
+/src
+/ultralight-sdk
+src
+__pycache__
