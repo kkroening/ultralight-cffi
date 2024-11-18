@@ -1,8 +1,12 @@
-# Ultralight CFFI bindings
+# [Ultralight](https://ultralig.ht/) CFFI bindings
+
+<img src="https://ultralig.ht/media/ul_logo.webp" alt="Ultralight Logo" width="30%"/>
+
+_(Not an officially endorsed [Ultralight](https://ultralig.ht/) project)_
 
 ## Overview
 
-This library provides low-level, minimalistic [CFFI](https://cffi.readthedocs.io/en/latest/overview.html)-based bindings for [Ultralight](https://ultralig.ht/).
+This library provides low-level, minimalistic [CFFI](https://cffi.readthedocs.io/en/latest/overview.html)-based bindings for Ultralight.
 
 It's extremely lightweight - one might even say _ultra_-lightweight ;)
 
