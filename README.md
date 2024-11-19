@@ -53,7 +53,7 @@ import pathlib
 import ultralight_cffi as ultra
 
 sdk_path = pathlib.Path(os.environ.get('ULTRALIGHT_SDK_PATH', 'ultralight-sdk'))
-ultralight_cffi.load(sdk_path / 'bin')
+ultra.load(sdk_path / 'bin')
 
 sdk_path_str = ultra.ulCreateStringUTF8(
     str(sdk_path).encode(), len(str(sdk_path).encode())
@@ -67,7 +67,7 @@ renderer = ultra.ulCreateRenderer(config)
 ultra.ulDestroyConfig(config)
 
 view_config = ultra.ulCreateViewConfig()
-view = ultra.ulCreateView(renderer, 800, 600, view_config, ultralight_cffi.NULL)
+view = ultra.ulCreateView(renderer, 800, 600, view_config, ultra.NULL)
 ultra.ulDestroyViewConfig(view_config)
 ```
 
@@ -79,7 +79,7 @@ ultra.ulDestroyViewConfig(view_config)
 ```python
 done = False
 
-@ultralight_cffi.callback(
+@ultra.callback(
     'void(void*, struct C_View*, unsigned long long, _Bool, struct C_String*)'
 )
 def on_finish_loading(user_data, caller, frame_id, is_main_frame, url):
@@ -88,7 +88,7 @@ def on_finish_loading(user_data, caller, frame_id, is_main_frame, url):
         print('Our page has loaded!')
         done = True
 
-ultra.ulViewSetFinishLoadingCallback(view, on_finish_loading, ultralight_cffi.NULL)
+ultra.ulViewSetFinishLoadingCallback(view, on_finish_loading, ultra.NULL)
 ```
 
 #### Load HTML:

@@ -4,17 +4,24 @@ import pathlib
 from textwrap import dedent
 from typing import Any
 from typing import TypeAlias
+import logging
 
 _HERE = pathlib.Path(__file__).parent
 _ROOT_DIR = _HERE.parent
 _SRC_DIR = _ROOT_DIR / 'ultralight_cffi'
 
+_SKIP_DECL_NAMES = {
+    'typedef max_align_t',
+    'typedef __caddr_t',
+    'typedef __fsid_t',
+    'typedef __timer_t',
+}
+
 _TypeID: TypeAlias = int
 
-
-decls = None
-
 _TypedefMap: TypeAlias = dict[_TypeID, tuple[cffi.model.BaseTypeByIdentity, set[str]]]
+
+_logger = logging.getLogger(__name__)
 
 
 def _get_typedef_map(
@@ -265,7 +272,7 @@ def _transform_declaration(
     type_obj: cffi.model.BaseTypeByIdentity,
 ) -> str:
     assert isinstance(type_obj, cffi.model.BaseTypeByIdentity)
-    # print('declaration:', type_name, type(type_obj), type_obj)
+    _logger.debug('declaration: %s %r %r', type_name, type(type_obj), type_obj)
 
     result: str
 
@@ -346,7 +353,7 @@ def _transform_declaration(
         #     f'# unknown obj: {type_name}; {type(type_obj)} {type_obj}; alias: {alias}\n'
         # )
         raise NotImplementedError(
-            f'Unsupported type: {type_name} {type(type_obj)} {type_obj}'
+            f'Unsupported type: {type_name} {type(type_obj)} {type_obj}; alias: {alias}'
         )
 
     return result
@@ -355,9 +362,6 @@ def _transform_declaration(
 def _transform_declarations(
     declarations: dict[str, tuple[cffi.model.BaseTypeByIdentity, Any]]
 ) -> str:
-    global decls
-    decls = declarations
-
     typedef_map = _get_typedef_map(declarations)
 
     result = dedent(
@@ -370,20 +374,22 @@ def _transform_declarations(
         import enum
         from collections.abc import Callable
         from typing import Any
-        from typing import Generic
         from typing import TypeAlias
-        from typing import TypeVar
         from ._base import Pointer
         from . import _base
         '''
     )
     for type_name, (type_obj, _) in declarations.items():
-        result += _transform_declaration(typedef_map, type_name, type_obj)
-        result += '\n'
+        if type_name not in _SKIP_DECL_NAMES:
+            result += _transform_declaration(typedef_map, type_name, type_obj)
+            result += '\n'
     return result
 
 
 def create_ffibuilder() -> cffi.FFI:
+    # _logger.setLevel(logging.DEBUG)
+    # logging.basicConfig(level=logging.DEBUG)
+
     ffibuilder = cffi.FFI()
     ffibuilder.cdef(_SRC_DIR.joinpath('_bindings.h').read_text())
     ffibuilder.set_source('ultralight_cffi._bindings', None)  # type: ignore[arg-type]

@@ -138,7 +138,7 @@ def load(
     library_names = _get_library_names()
     libs = [_load_lib(library_name, library_path) for library_name in library_names]
 
-    global _lib  # FIXME/TMP
+    global _lib  # FIXME/TMP  # pylint: disable=global-statement
     _lib = libs[-1]
 
     return _lib

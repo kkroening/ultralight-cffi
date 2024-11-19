@@ -14,6 +14,7 @@ disable=
     too-few-public-methods,
     too-many-arguments,
     too-many-instance-attributes,
+    too-many-positional-arguments,  # (comes with the territory of CFFI, unfortunately)
     use-dict-literal,  # (poor taste)
     wrong-import-order,
 enable=
