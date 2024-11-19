@@ -10,7 +10,7 @@ This library provides low-level, minimalistic [CFFI](https://cffi.readthedocs.io
 
 It's extremely lightweight - one might even say _ultra_-lightweight ;)
 
-This library's sole job is to provide auto-generated, low-level CFFI bindings for Ultralight.
+`ultralight-cffi`'s job is to provide auto-generated, low-level CFFI bindings for Ultralight - with PEP 484 type annotations.
 
 **`ultralight-cffi` does not install Ultralight itself**.  It's up to you to provide the appropriate shared libraries at runtime, as redistribution of Ultralight is out of scope for this project.
 
@@ -43,43 +43,43 @@ pip install -e ultralight-cffi
 
 ## Quickstart
 
-The following example demonstrates how to initialize `ultralight-cffi`, load some HTML, and render to a PNG file headlessly.
+The following example demonstrates how to initialize `ultralight-cffi`, load some HTML, and render to a PNG file headlessly - based on [`samples/html_to_png.py`](samples/html_to_png.py).
 
 #### Initialization:
 
 ```python
 import os
 import pathlib
-import ultralight_cffi
+import ultralight_cffi as ultra
 
 sdk_path = pathlib.Path(os.environ.get('ULTRALIGHT_SDK_PATH', 'ultralight-sdk'))
-lib = ultralight_cffi.load(sdk_path / 'bin')
+ultra.load(sdk_path / 'bin')
 
-sdk_path_str = lib.ulCreateStringUTF8(
+sdk_path_str = ultra.ulCreateStringUTF8(
     str(sdk_path).encode(), len(str(sdk_path).encode())
 )
-lib.ulEnablePlatformFileSystem(sdk_path_str)
-lib.ulDestroyString(sdk_path_str)
-lib.ulEnablePlatformFontLoader()
+ultra.ulEnablePlatformFileSystem(sdk_path_str)
+ultra.ulDestroyString(sdk_path_str)
+ultra.ulEnablePlatformFontLoader()
 
-config = lib.ulCreateConfig()
-renderer = lib.ulCreateRenderer(config)
-lib.ulDestroyConfig(config)
+config = ultra.ulCreateConfig()
+renderer = ultra.ulCreateRenderer(config)
+ultra.ulDestroyConfig(config)
 
-view_config = lib.ulCreateViewConfig()
-view = lib.ulCreateView(renderer, 800, 600, view_config, ultralight_cffi.NULL)
-lib.ulDestroyViewConfig(view_config)
+view_config = ultra.ulCreateViewConfig()
+view = ultra.ulCreateView(renderer, 800, 600, view_config, ultra.NULL)
+ultra.ulDestroyViewConfig(view_config)
 ```
 
 > [!NOTE]
-> The tedious string manipulation above (`lib.ulCreateStringUTF8`, etc.) deserves a helper function in the future.
+> The tedious string manipulation above (`ultra.ulCreateStringUTF8`, etc.) deserves a helper function in the future.
 
 #### Setup `OnFinishLoading` callback:
 
 ```python
 done = False
 
-@ultralight_cffi.callback(
+@ultra.callback(
     'void(void*, struct C_View*, unsigned long long, _Bool, struct C_String*)'
 )
 def on_finish_loading(user_data, caller, frame_id, is_main_frame, url):
@@ -88,37 +88,75 @@ def on_finish_loading(user_data, caller, frame_id, is_main_frame, url):
         print('Our page has loaded!')
         done = True
 
-lib.ulViewSetFinishLoadingCallback(view, on_finish_loading, ultralight_cffi.NULL)
+ultra.ulViewSetFinishLoadingCallback(view, on_finish_loading, ultra.NULL)
 ```
 
 #### Load HTML:
 
 ```python
 html = '<html><body><h1>Hello, World!</h1></body></html>'.encode()
-html_str = lib.ulCreateStringUTF8(html, len(html))
-lib.ulViewLoadHTML(view, html_str)
+html_str = ultra.ulCreateStringUTF8(html, len(html))
+ultra.ulViewLoadHTML(view, html_str)
 
 print('Starting Run(), waiting for page to load...')
 
 while not done:
-    lib.ulUpdate(renderer)
+    ultra.ulUpdate(renderer)
     time.sleep(0.01)
 ```
 
 #### Render to PNG file:
 
 ```python
-lib.ulRender(renderer)
-surface = lib.ulViewGetSurface(view)
-bitmap = lib.ulBitmapSurfaceGetBitmap(surface)
+ultra.ulRender(renderer)
+surface = ultra.ulViewGetSurface(view)
+bitmap = ultra.ulBitmapSurfaceGetBitmap(surface)
 
 out_filename = 'result.png'
-lib.ulBitmapWritePNG(bitmap, out_filename.encode())
+ultra.ulBitmapWritePNG(bitmap, out_filename.encode())
 
 print(f'Saved a render of our page to {out_filename}.')
 ```
 
-See [`samples/html_to_png.py`](samples/html_to_png.py).
+## Usage
+
+### Annotation layer vs raw CFFI interface
+
+Type annotations for `ultralight_cffi.*` are automatically generated from the Ultralight API C header files.  CFFI itself does not provide type annotations, but a custom [script](scripts/_build.py) fills them in by generating annotated wrapper methods (in `ultralight_cffi/_stubs.py`) that delegate to the lower-level FFI bindings.
+
+Annotations help catch and prevent mistakes like the following:
+
+```python
+bitmap = ultralight_cffi.ulBitmapSurfaceGetBitmap(view)  # incorrect!
+```
+
+In this example, the static type checker (e.g. mypy) quickly points out the fact that a _surface_ must be passed rather than a _view_:
+
+```
+error: Argument 1 to "ulBitmapSurfaceGetBitmap" has incompatible type "Pointer[C_View]"; expected "Pointer[C_Surface]"  [arg-type]
+```
+
+A quick change gets you back in business:
+
+```python
+bitmap = ultralight_cffi.ulBitmapSurfaceGetBitmap(surface)  # correct!
+```
+
+Once you embrace static typing in Python, it's hard to ever want to go back.
+
+Nonetheless, if you're not using a type checker, you can ignore the annotations, since it's ultimately still just CFFI.  If you encounter issues with the annotation layer, you may wish to bypass it and call the raw FFI bindings directly:
+
+```python
+lib = ultralight_cffi.get_lib()
+bitmap = lib.ulBitmapSurfaceGetBitmap(surface)  # equivalent to above, but without static typing
+```
+
+> [!NOTE]
+> CFFI provides only a non-generic `FFI.CData` for everything, which makes it challenging to enforce typing statically.  `Pointer[_T]` is really just an alias for `FFI.CData` during type checking, and goes away at runtime.
+
+### Examples
+
+See the [`samples/`](./samples/) directory for various examples, including headless HTML rendering, custom `Surface` implementation, etc.
 
 ## Development
 
@@ -133,13 +171,14 @@ This library consists of an `ultralight_cffi` Python package, which has a thin w
 │   ├── __init__.py         Wrapper module
 │   ├── _bindings.h         Auto-generated Ultralight preprocessed headers
 │   ├── _bindings.py        Auto-generated Ultralight CFFI bindings
-│   └──  ...                Additional wrapper logic
+│   ├── _stubs.py           Auto-generated PEP 484 annotation layer
+│   └──  ...                etc.
 │
 ├── scripts/
 │   ├── _build.py           Runs CFFI builder
 │   ├── ci                  Runs tests, mypy, pylint, etc. - same as GHA CI, but local
 │   ├── fetch_sdk           Fetches the Ultralight SDK (experimental/development-only!)
-│   └── gen_bindings        Re-generates `ultralight_cffi/_bindings.*`
+│   └── gen_bindings        Re-generates `ultralight_cffi/_bindings.*` + `_stubs.py`
 │
 ├── README.md               Where you are right now
 ├── pyproject.toml          Poetry-based package definitions/settings
@@ -148,9 +187,9 @@ This library consists of an `ultralight_cffi` Python package, which has a thin w
 
 The Ultralight-API headers are fetched as a git submodule for local development of this library, but are not required for end-user installation of `ultralight-cffi`.
 
-`scripts/gen_bindings` transforms the official headers into a consolidated `ultralight/_bindings.h` using `gcc`'s preprocessor (running in Docker, for consistency), and a small amount of post-processing.  Then it runs `scripts/_build.py` to run the CFFI builder to generate `_bindings.py`.
+`scripts/gen_bindings` transforms the official headers into a consolidated `ultralight_cffi/_bindings.h` using `gcc`'s preprocessor (running in Docker, for consistency), and a small amount of post-processing.  Then it runs `scripts/_build.py` to run the CFFI builder to generate `_bindings.py`.  And finally, `ultralight_cffi/_stubs.py` is generated by transforming the FFI builder's parsed declarations into PEP 484 annotated Python wrapper methods.
 
-Although `ultralight/_bindings.h` and `ultralight/_bindings.py` are auto-generated, they're committed to version control so that installing `ultralight-cffi` is as frictionless as possible.
+Although `ultralight/_bindings.*` and `ultralight/_stubs.py` are auto-generated, they're committed to version control so that installing `ultralight-cffi` is as frictionless as possible.
 
 > [!NOTE]
 > `ultralight/_bindings.h` isn't required at runtime, but it's included in the `ultralight` Python package anyways for the sake of documentation and history.
@@ -168,7 +207,7 @@ CFFI's _[Out-of-line, ABI level](https://cffi.readthedocs.io/en/latest/overview.
 git submodule update --init
 ```
 
-#### Generate `_ultralight/_bindings.h` and `_ultralight/_bindings.py`:
+#### Generate `_ultralight/_bindings.*` and `_ultralight/_stubs.py`:
 
 ```bash
 ./scripts/gen_bindings
@@ -185,12 +224,14 @@ git submodule update --init
 
 #### Commit and release:
 
+The auto-generated bindings + stubs are committed with the repo to be included directly in the resulting Python package:
+
 ```bash
-git add ultralight_cffi/_bindings.*
+git add ultralight_cffi/_bindings.* ultralight_cffi/_stubs.py
 poetry version x.x.x
 git commit -m 'Re-generate bindings'
 git tag x.x.x
 git push origin HEAD x.x.x
 ```
 
-The updated bindings are then installable downstream as a pip/Poetry-installable, git dependency.
+The updated bindings are then installable as a pip/Poetry-installable, git dependency, without any additional downstream build/extension tooling required for installation (besides `cffi` itself as a transitive dependency).

@@ -7,12 +7,21 @@ from cffi import FFI
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Generic
 from typing import TypeAlias
 from typing import TypeVar
 
-NULL = ffi.NULL
-
 _T = TypeVar('_T')
+
+
+class Pointer(Generic[_T]): ...
+
+
+if TYPE_CHECKING:
+    NULL = Pointer[Any]()
+else:
+    NULL = ffi.NULL
+
 
 if TYPE_CHECKING:  # CFFI type annotation workarounds
 
@@ -73,6 +82,8 @@ Adjust this as desired by setting the log level::
 
 Lib: TypeAlias = _cffi_backend.Lib
 
+_lib: Lib | None = None
+
 
 def _get_library_names() -> list[str]:
     """Determine the shared library names based on the platform."""
@@ -117,6 +128,7 @@ def load(
         to subsequently close the libraries with ``dlclose``. This could be improved
         in the future.
     """
+
     if isinstance(library_path, str):
         library_path = pathlib.Path(library_path)
 
@@ -125,4 +137,24 @@ def load(
     # separate FFI bindings for each shared library.
     library_names = _get_library_names()
     libs = [_load_lib(library_name, library_path) for library_name in library_names]
-    return libs[-1]
+
+    global _lib  # FIXME/TMP  # pylint: disable=global-statement
+    _lib = libs[-1]
+
+    return _lib
+
+
+def get_lib() -> Lib:
+    """Ensures that the Ultralight shared libraries have been loaded, and returns the
+    FFI interface.
+
+    Raises:
+        :class:`RuntimeError`: If the shared libraries haven't been loaded via
+        :meth:`load`.
+    """
+    if _lib is None:
+        raise RuntimeError(
+            'Ultralight shared libraries have not been loaded yet.  `ultralight.load` '
+            'needs to be called beforehand.'
+        )
+    return _lib

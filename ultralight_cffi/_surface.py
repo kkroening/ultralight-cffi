@@ -1,54 +1,15 @@
 import abc
 import inspect
 from . import _base
+from . import _stubs
 from ._base import CData
 from ._bindings import ffi
-from collections.abc import Callable
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
 from typing import Self
 from typing import TypeAlias
 from typing import cast
 from typing_extensions import Buffer
-
-# TODO: ideally generate these supplemental annotations automatically; written by hand
-# for now.
-
-if TYPE_CHECKING:
-    ULSurfaceDefinitionCreateCallback: TypeAlias = Callable[[int, int], CData]
-    ULSurfaceDefinitionDestroyCallback: TypeAlias = Callable[[CData], None]
-    ULSurfaceDefinitionGetWidthCallback: TypeAlias = Callable[[CData], int]
-    ULSurfaceDefinitionGetHeightCallback: TypeAlias = Callable[[CData], int]
-    ULSurfaceDefinitionGetRowBytesCallback: TypeAlias = Callable[[CData], int]
-    ULSurfaceDefinitionGetSizeCallback: TypeAlias = Callable[[CData], int]
-    ULSurfaceDefinitionLockPixelsCallback: TypeAlias = Callable[[CData], CData]
-    ULSurfaceDefinitionUnlockPixelsCallback: TypeAlias = Callable[[CData], None]
-    ULSurfaceDefinitionResizeCallback: TypeAlias = Callable[[CData, int, int], None]
-
-    class ULSurfaceDefinition:
-        create: ULSurfaceDefinitionCreateCallback
-        destroy: ULSurfaceDefinitionDestroyCallback
-        get_width: ULSurfaceDefinitionGetWidthCallback
-        get_height: ULSurfaceDefinitionGetHeightCallback
-        get_row_bytes: ULSurfaceDefinitionGetRowBytesCallback
-        get_size: ULSurfaceDefinitionGetSizeCallback
-        lock_pixels: ULSurfaceDefinitionLockPixelsCallback
-        unlock_pixels: ULSurfaceDefinitionUnlockPixelsCallback
-        resize: ULSurfaceDefinitionResizeCallback
-
-else:
-    ULSurfaceDefinitionCreateCallback: TypeAlias = Any
-    ULSurfaceDefinitionDestroyCallback: TypeAlias = Any
-    ULSurfaceDefinitionGetWidthCallback: TypeAlias = Any
-    ULSurfaceDefinitionGetHeightCallback: TypeAlias = Any
-    ULSurfaceDefinitionGetRowBytesCallback: TypeAlias = Any
-    ULSurfaceDefinitionGetSizeCallback: TypeAlias = Any
-    ULSurfaceDefinitionLockPixelsCallback: TypeAlias = Any
-    ULSurfaceDefinitionUnlockPixelsCallback: TypeAlias = Any
-    ULSurfaceDefinitionResizeCallback: TypeAlias = Any
-
-    ULSurfaceDefinition: TypeAlias = Any
 
 CustomSurfaceHandle: TypeAlias = CData
 
@@ -58,7 +19,7 @@ class CustomSurface(abc.ABC):
     implementations using ordinary Python (data)classes.
     """
 
-    _cb__create: ClassVar[ULSurfaceDefinitionCreateCallback | None] = None
+    _cb__create: ClassVar[_stubs.ULSurfaceDefinitionCreateCallback | None] = None
     """A subclass-specific reference to the creation callback.
 
     Unlike the other custom surface callbacks that have only a single definition (e.g.
@@ -179,7 +140,7 @@ class CustomSurface(abc.ABC):
         return surface.resize(width, height)
 
     @classmethod
-    def _generate_cb__create(cls) -> ULSurfaceDefinitionCreateCallback:
+    def _generate_cb__create(cls) -> _stubs.ULSurfaceDefinitionCreateCallback:
         """Dynamically generates a creation callback for the class.
 
         The other callbacks can all be singletons since they dispatch to the appropriate
@@ -199,9 +160,9 @@ class CustomSurface(abc.ABC):
         return _cb__create
 
     @classmethod
-    def get_definition(cls) -> ULSurfaceDefinition:
-        defn: ULSurfaceDefinition = cast(
-            ULSurfaceDefinition, ffi.new('ULSurfaceDefinition*')
+    def get_definition(cls) -> _stubs.ULSurfaceDefinition:
+        defn: _stubs.ULSurfaceDefinition = cast(
+            _stubs.ULSurfaceDefinition, ffi.new('ULSurfaceDefinition*')
         )
         if inspect.isabstract(cls):
             raise TypeError(
