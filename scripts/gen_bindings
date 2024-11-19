@@ -5,6 +5,7 @@ set -euo pipefail
 _MODULE_DIR="ultralight_cffi"
 _BINDINGS_H_FILE="${_MODULE_DIR}/_bindings.h"
 _BINDINGS_PY_FILE="${_MODULE_DIR}/_bindings.py"
+_STUBS_PYI_FILE="${_MODULE_DIR}/_stubs.pyi"
 
 _docker_gcc() {
   # TODO: consider pinning gcc image, rather than latest
@@ -60,7 +61,7 @@ _build_bindings_py() {
   ##
 
   .venv/bin/python scripts/_build.py
-  .venv/bin/black "${_BINDINGS_PY_FILE}"
+  .venv/bin/black "${_BINDINGS_PY_FILE}" "${_STUBS_PYI_FILE}"
 
   ##
   ## HACK: The official `types-cffi` seems to expect `str` instead of `bytes` in
