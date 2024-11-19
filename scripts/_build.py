@@ -119,15 +119,15 @@ def _transform_field_typename(
 
     elif isinstance(type_obj, cffi.model.PointerType):
         if isinstance(type_obj.totype, cffi.model.VoidType):
-            to_typename = 'Any'
+            result = 'Any'
         elif (
             isinstance(type_obj.totype, cffi.model.PrimitiveType)
             and type_obj.totype.name == 'char'
         ):
-            to_typename = 'bytes'
+            result = 'bytes'
         else:
             to_typename = _transform_field_typename(typedef_map, type_obj.totype)
-        result = f'Pointer[{to_typename}]'
+            result = f'Pointer[{to_typename}]'
 
     elif isinstance(type_obj, cffi.model.StructType):
         result = type_obj.name
@@ -216,18 +216,35 @@ def _transform_function_type(
 ) -> str:
     assert type_name.startswith('function ')
     func_name = type_name.removeprefix('function ')
-    result = f'def {func_name}('
 
-    arg_defs: list[str] = []
+    arg_names_text = ''
+    arg_annotations_text = ''
     for arg_index, arg_type_obj in enumerate(type_obj.args):
+        # Ideally the argument names would match the argument names in the C headers,
+        # but the CFFI parser doesn't provide such information, so the arg names have to
+        # just be `arg0`, `arg1`, etc.
+        arg_name = f'arg{arg_index}'
+        arg_names_text += arg_name + ', '
         arg_typename = _transform_field_typename(typedef_map, arg_type_obj)
-        arg_defs.append(f'arg{arg_index}: {arg_typename},')
-    if arg_defs:
-        result += ' '.join(arg_defs) + '/,'
+        arg_annotations_text += f'{arg_name}: {arg_typename}, '
+
+    if arg_annotations_text:
+        # Ending the function argument list with `/` enforces that the arguments are
+        # passed positionally - but only if there's at least one arg.
+        arg_annotations_text += '/,'
 
     return_typename = _transform_field_typename(typedef_map, type_obj.result)
-    result += f') -> {return_typename}:\n'
-    result += '    ...\n'
+    ignore_return_type = (
+        '# type: ignore[no-any-return]' if return_typename != 'Any' else ''
+    )
+    result = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
+    result += (
+        f'    return ({ignore_return_type}\n'
+        f'        _base.get_lib().{func_name}(  # type: ignore[attr-defined]\n'
+        f'            {arg_names_text}\n'
+        '        )'
+        '    )'
+    )
     return result
 
 
@@ -267,7 +284,7 @@ def _transform_declaration(
             # is redundant and thus skipped.
             #
             alias = _find_typedef_alias(typedef_map, type_obj)
-            result = f'# anonymous struct: {type_name}; alias: {alias}\n'
+            result = ''  # f'# anonymous struct: {type_name}; alias: {alias}\n'
 
         elif type_name.startswith('struct '):
             #
@@ -279,7 +296,7 @@ def _transform_declaration(
             result = f'class {name}: ...\n'
 
         elif type_name.startswith('constant '):
-            result = f'# constant: {type_name}\n'  # TODO: implement
+            result = f'# constant: {type_name}\n'  # TODO?
 
         else:
             raise NotImplementedError(
@@ -298,7 +315,9 @@ def _transform_declaration(
 
     elif isinstance(type_obj, cffi.model.PrimitiveType):
         alias = _find_typedef_alias(typedef_map, type_obj)
-        result = f'# primitive type: {type_name}; {type(type_obj)}; alias: {alias}\n'
+        result = (
+            ''  # f'# primitive type: {type_name}; {type(type_obj)}; alias: {alias}\n'
+        )
 
     elif isinstance(type_obj, cffi.model.PointerType):
         if type_name.startswith('typedef '):
@@ -315,7 +334,7 @@ def _transform_declaration(
             result = _transform_enum_typedef(typedef_map, type_name, type_obj)
         elif type_name.startswith('anonymous '):
             alias = _find_typedef_alias(typedef_map, type_obj)
-            result = f'# anonymous enum: {type_name}; alias: {alias}\n'
+            result = ''  # f'# anonymous enum: {type_name}; alias: {alias}\n'
         else:
             raise NotImplementedError(
                 f'Unsupported pointer enum: {type_name} {type(type_obj)} {type_obj}'
@@ -354,6 +373,7 @@ def _transform_declarations(
         from typing import Generic
         from typing import TypeAlias
         from typing import TypeVar
+        from . import _base
 
         _T = TypeVar('_T')
 
@@ -374,7 +394,7 @@ def create_ffibuilder() -> cffi.FFI:
 
     parser: cffi.cparser.Parser = ffibuilder._parser  # type: ignore[attr-defined,name-defined]
     text = _transform_declarations(parser._declarations)
-    pathlib.Path('ultralight_cffi').joinpath('_stubs.pyi').write_text(text)
+    pathlib.Path('ultralight_cffi').joinpath('_stubs.py').write_text(text)
     return ffibuilder
 
 
