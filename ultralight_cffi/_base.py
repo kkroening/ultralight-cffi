@@ -7,12 +7,21 @@ from cffi import FFI
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Generic
 from typing import TypeAlias
 from typing import TypeVar
 
-NULL = ffi.NULL
-
 _T = TypeVar('_T')
+
+
+class Pointer(Generic[_T]): ...
+
+
+if TYPE_CHECKING:
+    NULL = Pointer[Any]()
+else:
+    NULL = ffi.NULL
+
 
 if TYPE_CHECKING:  # CFFI type annotation workarounds
 

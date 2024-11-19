@@ -9,12 +9,8 @@ from typing import Any
 from typing import Generic
 from typing import TypeAlias
 from typing import TypeVar
+from ._base import Pointer
 from . import _base
-
-_T = TypeVar('_T')
-
-
-class Pointer(Generic[_T]): ...
 
 
 class max_align_t:
