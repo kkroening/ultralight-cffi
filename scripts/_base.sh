@@ -7,6 +7,7 @@ base::abspath() {
 }
 
 BASE__ROOT_DIR="$(base::abspath "$(dirname "${BASH_SOURCE}")/..")"
+BASE__SCRIPTS_DIR="${BASE__ROOT_DIR}/scripts"
 
 _BASE__COLOR_LIGHT_GREEN='\033[1;32m'
 _BASE__COLOR_OFF='\033[0m'
@@ -49,4 +50,19 @@ base::ensure_which() {
   if ! which "$1" > /dev/null; then
     base::abort "$1 not found; aborting."
   fi
+}
+
+base::get_repo_https_url() {
+  #
+  # `base::get_repo_https_url`: Determine the GitHub https URL for this repo
+  # based on the default `origin` git remote.
+  #
+  # If the remote URL is git/SSH, the URL is converted to https using basic
+  # string manipulation.
+  #
+  local url
+  url="$(git config --get remote.origin.url)" || false
+  url="${url/#git@github.com:/https://github.com/}"
+  url="${url/%.git/}"
+  echo "${url}"
 }

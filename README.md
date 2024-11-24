@@ -1,5 +1,13 @@
 # [Ultralight](https://ultralig.ht/) CFFI bindings (Python)
 
+[![Tests][ci-badge]][ci]
+[![Changelog][changelog-badge]][changelog]
+
+[changelog-badge]: https://img.shields.io/badge/Changelog-%20-%23
+[changelog]: ./CHANGELOG.md
+[ci-badge]: https://github.com/kkroening/ultralight-cffi/actions/workflows/ci.yml/badge.svg
+[ci]: https://github.com/kkroening/ultralight-cffi/actions/workflows/ci.yml
+
 <img src="https://ultralig.ht/media/ul_logo.webp" alt="Ultralight Logo" width="30%"/>
 
 _(Not an officially endorsed [Ultralight](https://ultralig.ht/) project)_
