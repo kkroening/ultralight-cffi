@@ -1479,7 +1479,7 @@ def JSObjectMakeTypedArray(
     return (  # type: ignore[no-any-return]
         _base.get_lib().JSObjectMakeTypedArray(  # type: ignore[attr-defined]
             arg0,
-            arg1.value,
+            arg1,
             arg2,
             arg3,
         )
@@ -1499,7 +1499,7 @@ def JSObjectMakeTypedArrayWithBytesNoCopy(
     return (  # type: ignore[no-any-return]
         _base.get_lib().JSObjectMakeTypedArrayWithBytesNoCopy(  # type: ignore[attr-defined]
             arg0,
-            arg1.value,
+            arg1,
             arg2,
             arg3,
             arg4,
@@ -1519,7 +1519,7 @@ def JSObjectMakeTypedArrayWithArrayBuffer(
     return (  # type: ignore[no-any-return]
         _base.get_lib().JSObjectMakeTypedArrayWithArrayBuffer(  # type: ignore[attr-defined]
             arg0,
-            arg1.value,
+            arg1,
             arg2,
             arg3,
         )
@@ -1538,7 +1538,7 @@ def JSObjectMakeTypedArrayWithArrayBufferAndOffset(
     return (  # type: ignore[no-any-return]
         _base.get_lib().JSObjectMakeTypedArrayWithArrayBufferAndOffset(  # type: ignore[attr-defined]
             arg0,
-            arg1.value,
+            arg1,
             arg2,
             arg3,
             arg4,
@@ -2077,7 +2077,7 @@ def ulCreateBitmap(
         _base.get_lib().ulCreateBitmap(  # type: ignore[attr-defined]
             arg0,
             arg1,
-            arg2.value,
+            arg2,
         )
     )
 
@@ -2096,7 +2096,7 @@ def ulCreateBitmapFromPixels(
         _base.get_lib().ulCreateBitmapFromPixels(  # type: ignore[attr-defined]
             arg0,
             arg1,
-            arg2.value,
+            arg2,
             arg3,
             arg4,
             arg5,
@@ -2427,7 +2427,7 @@ def ulConfigSetFaceWinding(
     return (  # type: ignore[no-any-return]
         _base.get_lib().ulConfigSetFaceWinding(  # type: ignore[attr-defined]
             arg0,
-            arg1.value,
+            arg1,
         )
     )
 
@@ -2440,7 +2440,7 @@ def ulConfigSetFontHinting(
     return (  # type: ignore[no-any-return]
         _base.get_lib().ulConfigSetFontHinting(  # type: ignore[attr-defined]
             arg0,
-            arg1.value,
+            arg1,
         )
     )
 
@@ -3108,7 +3108,7 @@ def ulCreateKeyEvent(
 ) -> ULKeyEvent:
     return (  # type: ignore[no-any-return]
         _base.get_lib().ulCreateKeyEvent(  # type: ignore[attr-defined]
-            arg0.value,
+            arg0,
             arg1,
             arg2,
             arg3,
@@ -3159,10 +3159,10 @@ def ulCreateMouseEvent(
 ) -> ULMouseEvent:
     return (  # type: ignore[no-any-return]
         _base.get_lib().ulCreateMouseEvent(  # type: ignore[attr-defined]
-            arg0.value,
+            arg0,
             arg1,
             arg2,
-            arg3.value,
+            arg3,
         )
     )
 
@@ -3569,7 +3569,7 @@ def ulCreateScrollEvent(
 ) -> ULScrollEvent:
     return (  # type: ignore[no-any-return]
         _base.get_lib().ulCreateScrollEvent(  # type: ignore[attr-defined]
-            arg0.value,
+            arg0,
             arg1,
             arg2,
         )
@@ -3595,7 +3595,7 @@ def ulCreateGamepadEvent(
     return (  # type: ignore[no-any-return]
         _base.get_lib().ulCreateGamepadEvent(  # type: ignore[attr-defined]
             arg0,
-            arg1.value,
+            arg1,
         )
     )
 
@@ -5071,7 +5071,7 @@ def ulWindowSetCursor(
     return (  # type: ignore[no-any-return]
         _base.get_lib().ulWindowSetCursor(  # type: ignore[attr-defined]
             arg0,
-            arg1.value,
+            arg1,
         )
     )
 

@@ -231,17 +231,7 @@ def _transform_function_type(
         # but the CFFI parser doesn't provide such information, so the arg names have to
         # just be `arg0`, `arg1`, etc.
         arg_name = f'arg{arg_index}'
-
-        arg_value = arg_name
-        if isinstance(arg_type_obj, cffi.model.EnumType):
-            # Enum objects must be converted to raw integer because CFFI doesn't seem to
-            # understand `IntEnum`.  Tradeoff: extra translation layer complexity here,
-            # but makes much stronger type safety of the generated code.
-            #
-            # Note that this isn't foolproof - e.g. list of enums wouldn't be handled
-            # correctly - but none in the Ultralight API so far anyways.
-            arg_value += '.value'
-
+        arg_value = arg_name  # TBD: arg value expressions could be modified here
         arg_values.append(arg_value)
         arg_typename = _transform_field_typename(typedef_map, arg_type_obj)
         arg_annotations.append(f'{arg_name}: {arg_typename}')
