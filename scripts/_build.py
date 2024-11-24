@@ -1,10 +1,10 @@
 import cffi
 import cffi.model
+import logging
 import pathlib
 from textwrap import dedent
 from typing import Any
 from typing import TypeAlias
-import logging
 
 _HERE = pathlib.Path(__file__).parent
 _ROOT_DIR = _HERE.parent
@@ -224,31 +224,48 @@ def _transform_function_type(
     assert type_name.startswith('function ')
     func_name = type_name.removeprefix('function ')
 
-    arg_names_text = ''
-    arg_annotations_text = ''
+    arg_values: list[str] = []
+    arg_annotations: list[str] = []
     for arg_index, arg_type_obj in enumerate(type_obj.args):
         # Ideally the argument names would match the argument names in the C headers,
         # but the CFFI parser doesn't provide such information, so the arg names have to
         # just be `arg0`, `arg1`, etc.
         arg_name = f'arg{arg_index}'
-        arg_names_text += arg_name + ', '
-        arg_typename = _transform_field_typename(typedef_map, arg_type_obj)
-        arg_annotations_text += f'{arg_name}: {arg_typename}, '
 
-    if arg_annotations_text:
+        arg_value = arg_name
+        if isinstance(arg_type_obj, cffi.model.EnumType):
+            # Enum objects must be converted to raw integer because CFFI doesn't seem to
+            # understand `IntEnum`.  Tradeoff: extra translation layer complexity here,
+            # but makes much stronger type safety of the generated code.
+            #
+            # Note that this isn't foolproof - e.g. list of enums wouldn't be handled
+            # correctly - but none in the Ultralight API so far anyways.
+            arg_value += '.value'
+
+        arg_values.append(arg_value)
+        arg_typename = _transform_field_typename(typedef_map, arg_type_obj)
+        arg_annotations.append(f'{arg_name}: {arg_typename}')
+
+    arg_annotations_text = ', '.join(arg_annotations)
+    if arg_annotations:
         # Ending the function argument list with `/` enforces that the arguments are
         # passed positionally - but only if there's at least one arg.
-        arg_annotations_text += '/,'
+        arg_annotations_text += ', /,'
+
+    arg_values_text = ', '.join(arg_values)
+    if arg_values:
+        arg_values_text += ','
 
     return_typename = _transform_field_typename(typedef_map, type_obj.result)
     ignore_return_type = (
         '# type: ignore[no-any-return]' if return_typename != 'Any' else ''
     )
+
     result = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
     result += (
         f'    return ({ignore_return_type}\n'
         f'        _base.get_lib().{func_name}(  # type: ignore[attr-defined]\n'
-        f'            {arg_names_text}\n'
+        f'            {arg_values_text}\n'
         '        )'
         '    )'
     )
