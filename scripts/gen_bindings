@@ -60,7 +60,7 @@ _build_bindings_py() {
   ## less bashery.
   ##
 
-  .venv/bin/python scripts/_build.py
+  .venv/bin/python "${BASE__SCRIPTS_DIR}"/_build.py
   .venv/bin/black "${_BINDINGS_PY_FILE}" "${_STUBS_PY_FILE}"
   .venv/bin/isort "${_BINDINGS_PY_FILE}" "${_STUBS_PY_FILE}"
 
@@ -80,7 +80,7 @@ _build_bindings_py() {
 }
 
 _main() {
-  scripts/_init
+  "${BASE__SCRIPTS_DIR}"/_init
   _build_bindings_h
   _build_bindings_py
 }

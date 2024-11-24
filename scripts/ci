@@ -45,7 +45,7 @@ _main() {
   cd "$(dirname "${BASH_SOURCE}")/.."
 
   if ! (
-    scripts/_init || return
+    "${BASE__SCRIPTS_DIR}"/_init || return
     _mypy || return
     _pytest "$@" || return
     _pylint || return

@@ -5,7 +5,7 @@ set -euo pipefail
 _init() {
   base::show_banner "Initializing workarea"
   poetry install
-  scripts/fetch_sdk
+  "${BASE__SCRIPTS_DIR}"/fetch_sdk
 }
 
 _main() {
