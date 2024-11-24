@@ -62,6 +62,7 @@ _build_bindings_py() {
 
   .venv/bin/python scripts/_build.py
   .venv/bin/black "${_BINDINGS_PY_FILE}" "${_STUBS_PY_FILE}"
+  .venv/bin/isort "${_BINDINGS_PY_FILE}" "${_STUBS_PY_FILE}"
 
   ##
   ## HACK: The official `types-cffi` seems to expect `str` instead of `bytes` in
