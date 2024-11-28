@@ -9,12 +9,12 @@ from contextlib import contextmanager
 class UltralightULError(_base_error.UltralightError):
     """An exception originating from Ultralight itself from the ``ul*`` API.
 
-    For example, if :meth:`_stubs.ulViewEvaluateScript` produces an exception string,
+    For example, if :func:`_stubs.ulViewEvaluateScript` produces an exception string,
     it gets wrapped in a :class:`UltralightULError` and then raised as a proper Python
     exception.
 
     See also:
-        :meth:`_js_misc.UltralightJSError`: An exception originating from Ultralight's
+        :class:`_js_misc.UltralightJSError`: An exception originating from Ultralight's
         ``JS*`` API (rather than ``ul*``) with an associated JavaScript value rather
         than a string.
     """

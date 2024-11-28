@@ -24,6 +24,7 @@ def get_property(
     jobj: _stubs.JSObjectRef,
     prop_name: str,
 ) -> _stubs.JSValueRef:
+    """Retrieves a property value from an Ultralight JavaScript object."""
     with js_str.scoped(prop_name) as prop_name_jstr:
         with js_error.scoped(ctx) as error_jval_ref:
             prop_value = _stubs.JSObjectGetProperty(
@@ -38,6 +39,7 @@ def set_property(
     prop_name: str,
     value: _stubs.JSValueRef,
 ) -> None:
+    """Sets a property on an Ultralight JavaScript object."""
     with js_str.scoped(prop_name) as prop_name_jstr:
         with js_error.scoped(ctx) as error_jval_ref:
             _stubs.JSObjectSetProperty(
@@ -54,6 +56,7 @@ def get_property_names(
     ctx: _stubs.JSContextRef,
     jobj: _stubs.JSObjectRef,
 ) -> list[str]:
+    """Retrieves the names of all properties on a JavaScript object."""
     names_array = _stubs.JSObjectCopyPropertyNames(ctx, jobj)
     try:
         name_count = _stubs.JSPropertyNameArrayGetCount(names_array)
@@ -67,10 +70,13 @@ def get_property_names(
     return names
 
 
-def to_dict(
+def to_shallow_dict(
     ctx: _stubs.JSContextRef,
     jobj: _stubs.JSObjectRef,
 ) -> dict[str, _stubs.JSObjectRef]:
+    """Converts a JavaScript object into a Python dictionary shallowly - i.e. without
+    recursively converting the values from :class:`JSValueRef` to Python values/objects.
+    """
     return {k: get_property(ctx, jobj, k) for k in get_property_names(ctx, jobj)}
 
 
@@ -83,6 +89,12 @@ def new_function_from_script(
     source_url: str = '',
     starting_line_num: int = 0,
 ) -> _stubs.JSObjectRef:
+    """Creates a new JavaScript function object from a script body.
+
+    Warning:
+        It's the caller's responsibility to ensure that the resulting JS object is not
+        prematurely garbage collected by the JavaScript runtime.
+    """
     with contextlib.ExitStack() as exit_stack:
         name_jstr = exit_stack.enter_context(js_str.scoped(name))
         param_names_jstrs = _ffi.new(
@@ -111,7 +123,7 @@ def new_error(
     ctx: _stubs.JSContextRef,
     arg_jvals: list[_stubs.JSValueRef],
 ) -> _stubs.JSObjectRef:
-    """Creates a
+    """Creates a new JavaScript Error object.
 
     Note:
         It's technically possible to encounter a nested error in the process of
@@ -137,16 +149,16 @@ def new_error(
     return error_jobj
 
 
-def jobj_wrap_callable(
+def wrap_callable(
     func: FunctionCallable,
 ) -> _stubs.JSObjectCallAsFunctionCallback:
     """Wraps a Python callable as a CFFI callable that can be used as an Ultralight
     JavaScript function callback.
 
     Note:
-        This returns only a CFFI function pointer, which by itself is not directly
-        callable from JavaScript.  To obtain the latter, use
-        :meth:`new_function_from_callable`.
+        This is a low-level helper method, returning only a CFFI function pointer, which
+        on its own is not directly callable from JavaScript.  To obtain a callable
+        JavaScript function object, use :meth:`new_function_from_callable` instead.
 
     Warning:
         It's the caller's responsibility to ensure that the returned CFFI function
@@ -231,7 +243,7 @@ def new_function_from_callable(
     .. _Garbage-Collected Types:
         https://docs.ultralig.ht/docs/garbage-collected-types
     """
-    jcallback = jobj_wrap_callable(callback)
+    jcallback = wrap_callable(callback)
     with js_str.scoped(name) as name_jstr:
         jobj = _stubs.JSObjectMakeFunctionWithCallback(ctx, name_jstr, jcallback)
     return jobj, jcallback

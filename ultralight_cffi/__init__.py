@@ -28,4 +28,4 @@ __all__ = [
     'NULL',
     'unpack',
 ]
-__all__ += _stubs.__all__
+__all__ += _stubs.__all__ + glue.__all__
