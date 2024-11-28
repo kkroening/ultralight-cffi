@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import _cffi_backend
 import logging
 import pathlib
@@ -10,11 +12,23 @@ from typing import Any
 from typing import Generic
 from typing import TypeAlias
 from typing import TypeVar
+from typing import overload
 
 _T = TypeVar('_T')
 
 
-class Pointer(Generic[_T]): ...
+class Pointer(Generic[_T]):
+    if TYPE_CHECKING:
+
+        @overload
+        def __getitem__(self, key: int) -> _T: ...
+
+        @overload
+        def __getitem__(self, key: slice) -> Pointer[_T]: ...
+
+        def __getitem__(self, key: int | slice) -> _T | Pointer[_T]: ...
+
+        def __setitem__(self, key: int, value: _T) -> None: ...
 
 
 if TYPE_CHECKING:
