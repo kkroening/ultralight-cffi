@@ -4,7 +4,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 
 
-def jstr_decode(
+def decode(
     jstr: _stubs.JSStringRef,
 ) -> str:
     str_ptr = _stubs.JSStringGetCharactersPtr(jstr)
@@ -21,7 +21,7 @@ def jstr_decode(
 
 
 @contextmanager
-def jstr_scope(text: str) -> Generator[_stubs.JSStringRef, None, None]:
+def scoped(text: str) -> Generator[_stubs.JSStringRef, None, None]:
     jstr = _stubs.JSStringCreateWithUTF8CString(text.encode())
     try:
         yield jstr

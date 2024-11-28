@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 
 @contextmanager
-def ulstr_scope(
+def scoped(
     pystr: str,
 ) -> Generator[_stubs.ULString, None, None]:
     ulstr = _stubs.ulCreateStringUTF8(pystr.encode(), len(pystr.encode()))

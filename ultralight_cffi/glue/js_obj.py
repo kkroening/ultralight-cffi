@@ -2,13 +2,13 @@ import contextlib
 from .. import _base
 from .. import _ffi
 from .. import _stubs
-from . import _js_error
-from . import _jstr
+from . import js_error
+from . import js_str
 from collections.abc import Callable
 from typing import TypeAlias
 from typing import cast
 
-JFunctionCallable: TypeAlias = Callable[
+FunctionCallable: TypeAlias = Callable[
     [
         _stubs.JSContextRef,  # ctx
         _stubs.JSObjectRef,  # function
@@ -19,27 +19,27 @@ JFunctionCallable: TypeAlias = Callable[
 ]
 
 
-def jobj_get_property(
+def get_property(
     ctx: _stubs.JSContextRef,
     jobj: _stubs.JSObjectRef,
     prop_name: str,
 ) -> _stubs.JSValueRef:
-    with _jstr.jstr_scope(prop_name) as prop_name_jstr:
-        with _js_error.handle_js_error(ctx) as error_jval_ref:
+    with js_str.scoped(prop_name) as prop_name_jstr:
+        with js_error.scoped(ctx) as error_jval_ref:
             prop_value = _stubs.JSObjectGetProperty(
                 ctx, jobj, prop_name_jstr, error_jval_ref
             )
     return prop_value
 
 
-def jobj_set_property(
+def set_property(
     ctx: _stubs.JSContextRef,
     jobj: _stubs.JSObjectRef,
     prop_name: str,
     value: _stubs.JSValueRef,
 ) -> None:
-    with _jstr.jstr_scope(prop_name) as prop_name_jstr:
-        with _js_error.handle_js_error(ctx) as error_jval_ref:
+    with js_str.scoped(prop_name) as prop_name_jstr:
+        with js_error.scoped(ctx) as error_jval_ref:
             _stubs.JSObjectSetProperty(
                 ctx,
                 jobj,
@@ -50,7 +50,7 @@ def jobj_set_property(
             )
 
 
-def jobj_get_property_names(
+def get_property_names(
     ctx: _stubs.JSContextRef,
     jobj: _stubs.JSObjectRef,
 ) -> list[str]:
@@ -61,22 +61,20 @@ def jobj_get_property_names(
             _stubs.JSPropertyNameArrayGetNameAtIndex(names_array, i)
             for i in range(name_count)
         ]
-        names = [_jstr.jstr_decode(x) for x in name_jstrs]
+        names = [js_str.decode(x) for x in name_jstrs]
     finally:
         _stubs.JSPropertyNameArrayRelease(names_array)
     return names
 
 
-def jobj_to_dict(
+def to_dict(
     ctx: _stubs.JSContextRef,
     jobj: _stubs.JSObjectRef,
 ) -> dict[str, _stubs.JSObjectRef]:
-    return {
-        k: jobj_get_property(ctx, jobj, k) for k in jobj_get_property_names(ctx, jobj)
-    }
+    return {k: get_property(ctx, jobj, k) for k in get_property_names(ctx, jobj)}
 
 
-def jobj_new_function_from_script(
+def new_function_from_script(
     ctx: _stubs.JSContextRef,
     name: str,
     param_names: list[str],
@@ -86,15 +84,15 @@ def jobj_new_function_from_script(
     starting_line_num: int = 0,
 ) -> _stubs.JSObjectRef:
     with contextlib.ExitStack() as exit_stack:
-        name_jstr = exit_stack.enter_context(_jstr.jstr_scope(name))
+        name_jstr = exit_stack.enter_context(js_str.scoped(name))
         param_names_jstrs = _ffi.new(
             'JSStringRef[]',
-            [exit_stack.enter_context(_jstr.jstr_scope(x)) for x in param_names],
+            [exit_stack.enter_context(js_str.scoped(x)) for x in param_names],
         )
-        body_jstr = exit_stack.enter_context(_jstr.jstr_scope(script_body))
-        source_url_jstr = exit_stack.enter_context(_jstr.jstr_scope(source_url))
+        body_jstr = exit_stack.enter_context(js_str.scoped(script_body))
+        source_url_jstr = exit_stack.enter_context(js_str.scoped(source_url))
 
-        with _js_error.handle_js_error(ctx) as error_jval_ref:
+        with js_error.scoped(ctx) as error_jval_ref:
             jobj = _stubs.JSObjectMakeFunction(
                 ctx,
                 name_jstr,
@@ -109,7 +107,7 @@ def jobj_new_function_from_script(
     return jobj
 
 
-def jobj_make_error(
+def new_error(
     ctx: _stubs.JSContextRef,
     arg_jvals: list[_stubs.JSValueRef],
 ) -> _stubs.JSObjectRef:
@@ -128,7 +126,7 @@ def jobj_make_error(
         _base.Pointer[_stubs.JSValueRef], _ffi.new('JSValueRef[]', arg_jvals)
     )
 
-    with _js_error.handle_js_error(ctx) as nested_error_jobj_ref:
+    with js_error.scoped(ctx) as nested_error_jobj_ref:
         error_jobj = _stubs.JSObjectMakeError(
             ctx,
             len(arg_jvals),
@@ -140,7 +138,7 @@ def jobj_make_error(
 
 
 def jobj_wrap_callable(
-    func: JFunctionCallable,
+    func: FunctionCallable,
 ) -> _stubs.JSObjectCallAsFunctionCallback:
     """Wraps a Python callable as a CFFI callable that can be used as an Ultralight
     JavaScript function callback.
@@ -148,7 +146,7 @@ def jobj_wrap_callable(
     Note:
         This returns only a CFFI function pointer, which by itself is not directly
         callable from JavaScript.  To obtain the latter, use
-        :meth:`jobj_new_function_from_callable`.
+        :meth:`new_function_from_callable`.
 
     Warning:
         It's the caller's responsibility to ensure that the returned CFFI function
@@ -194,10 +192,10 @@ def jobj_wrap_callable(
             )
 
             error_message = f'Error in JS->Python callback: {str(error)}'
-            with _jstr.jstr_scope(error_message) as error_message_jstr:
+            with js_str.scoped(error_message) as error_message_jstr:
                 error_message_jval = _stubs.JSValueMakeString(ctx, error_message_jstr)
 
-            error_jval_ref[0] = jobj_make_error(ctx, [error_message_jval])
+            error_jval_ref[0] = new_error(ctx, [error_message_jval])
             result = _base.NULL  # TBD
 
         return result
@@ -205,10 +203,10 @@ def jobj_wrap_callable(
     return wrapper
 
 
-def jobj_new_function_from_callable(
+def new_function_from_callable(
     ctx: _stubs.JSContextRef,
     name: str,
-    callback: JFunctionCallable,
+    callback: FunctionCallable,
 ) -> tuple[_stubs.JSObjectRef, _stubs.JSObjectCallAsFunctionCallback]:
     """Creates a new JS function object from a Python callable, along with an associated
     wrapper CFFI function pointer.
@@ -234,6 +232,6 @@ def jobj_new_function_from_callable(
         https://docs.ultralig.ht/docs/garbage-collected-types
     """
     jcallback = jobj_wrap_callable(callback)
-    with _jstr.jstr_scope(name) as name_jstr:
+    with js_str.scoped(name) as name_jstr:
         jobj = _stubs.JSObjectMakeFunctionWithCallback(ctx, name_jstr, jcallback)
     return jobj, jcallback

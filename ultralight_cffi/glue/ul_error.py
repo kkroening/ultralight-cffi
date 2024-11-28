@@ -21,7 +21,7 @@ class UltralightULError(_base_error.UltralightError):
 
 
 @contextmanager
-def handle_ul_error() -> Generator[_base.Pointer[_stubs.ULString], None, None]:
+def scoped() -> Generator[_base.Pointer[_stubs.ULString], None, None]:
     error_ulstr_ref = _ffi.new('ULString *')
     try:
         yield error_ulstr_ref
