@@ -251,14 +251,44 @@ def _transform_function_type(
         '# type: ignore[no-any-return]' if return_typename != 'Any' else ''
     )
 
-    result = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
-    result += (
-        f'    return ({ignore_return_type}\n'
-        f'        _base.get_lib().{func_name}(  # type: ignore[attr-defined]\n'
-        f'            {arg_values_text}\n'
-        '        )'
-        '    )'
-    )
+    # Check for special case(s) based on return type:
+
+    if (  # Check if the return type is `char *`
+        isinstance(type_obj.result, cffi.model.PointerType)
+        and isinstance(type_obj.result.totype, cffi.model.PrimitiveType)
+        and type_obj.result.totype.name == 'char'
+    ):
+        # Generate code to convert `char *` to `bytes` using `ffi.string`.
+        #
+        # Note: While identifying a `char *` return type is straightforward, it is
+        # not universally foolproof for CFFI code generation. In general, `char *`
+        # could represent other types of data besides null-terminated byte strings.
+        # However, in the case of Ultralight (as of the time of writing), all
+        # existing CAPI functions that return `char *` represent null-terminated byte
+        # strings. If the API evolves to include different use cases, this logic may
+        # need to be revisited and adjusted to accommodate those changes.
+
+        result = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
+        result += (
+            f'    cdata_result = _base.get_lib().{func_name}('
+            '  # type: ignore[attr-defined]\n'
+            f'        {arg_values_text}\n'
+            '    )\n'
+            '    bytes_result = _bindings.ffi.string(cdata_result)\n'
+            '    assert isinstance(bytes_result, bytes)\n'  # narrow `bytes | str`
+            '    return bytes_result\n'
+        )
+    else:
+        # Default behavior
+        result = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
+        result += (
+            f'    return ({ignore_return_type}\n'
+            f'        _base.get_lib().{func_name}(  # type: ignore[attr-defined]\n'
+            f'            {arg_values_text}\n'
+            '        )'
+            '    )'
+        )
+
     return result
 
 
@@ -384,6 +414,7 @@ def _transform_declarations(
         from typing import TypeAlias
         from ._base import Pointer
         from . import _base
+        from . import _bindings
         '''
     )
     for type_name, (type_obj, _) in declarations.items():

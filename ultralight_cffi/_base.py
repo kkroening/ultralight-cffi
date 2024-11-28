@@ -63,6 +63,10 @@ else:
     CData: TypeAlias = Any
 
 
+def new(type_str: str, init: Any = None) -> Any:
+    return ffi.new(type_str, init)
+
+
 # Note: The library names are ordered according to the required initialization
 # sequence; i.e. UltralightCore must be loaded before WebCore, etc.
 _DARWIN_LIBRARY_NAMES = [
