@@ -165,7 +165,6 @@ def _transform_field_typename(
 
     else:
         result = 'unknown'
-        # breakpoint()
 
     return result
 
@@ -250,11 +249,9 @@ def _transform_function_type(
         arg_values_text += ','
 
     return_typename = _transform_field_typename(typedef_map, type_obj.result)
-    ignore_return_type = (
-        '# type: ignore[no-any-return]' if return_typename != 'Any' else ''
-    )
 
-    # Check for special case(s) based on return type:
+    code = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
+
     if (  # Check if the return type is `char *`
         isinstance(type_obj.result, cffi.model.PointerType)
         and isinstance(type_obj.result.totype, cffi.model.PrimitiveType)
@@ -270,7 +267,6 @@ def _transform_function_type(
         # strings. If the API evolves to include different use cases, this logic may
         # need to be revisited and adjusted to accommodate those changes.
 
-        code = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
         code += (
             f'    cdata_result = _base.get_lib().{func_name}('
             '  # type: ignore[attr-defined]\n'
@@ -280,11 +276,23 @@ def _transform_function_type(
             '    assert isinstance(bytes_result, bytes)\n'  # narrow `bytes | str`
             '    return bytes_result\n'
         )
+
     else:
-        # Default behavior
-        code = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
+        if isinstance(type_obj.result, cffi.model.EnumType):
+            # Wrap returned integer value with respective IntEnum type for consistency
+            return_typecast = return_typename
+            ignore_return_type = ''
+        elif return_typename == 'Any':
+            return_typecast = ''
+            ignore_return_type = ''
+        else:
+            # TBD: maybe better to just use `return_typecast = return_typename` here too
+            # and eliminate the type ignore.
+            return_typecast = ''
+            ignore_return_type = '# type: ignore[no-any-return]'
+
         code += (
-            f'    return ({ignore_return_type}\n'
+            f'    return {return_typecast}({ignore_return_type}\n'
             f'        _base.get_lib().{func_name}(  # type: ignore[attr-defined]\n'
             f'            {arg_values_text}\n'
             '        )'

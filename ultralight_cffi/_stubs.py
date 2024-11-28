@@ -163,7 +163,7 @@ def JSValueGetType(
     arg1: JSValueRef,
     /,
 ) -> JSType:
-    return (  # type: ignore[no-any-return]
+    return JSType(
         _base.get_lib().JSValueGetType(  # type: ignore[attr-defined]
             arg0,
             arg1,
@@ -309,7 +309,7 @@ def JSValueGetTypedArrayType(
     arg2: Pointer[JSValueRef],
     /,
 ) -> JSTypedArrayType:
-    return (  # type: ignore[no-any-return]
+    return JSTypedArrayType(
         _base.get_lib().JSValueGetTypedArrayType(  # type: ignore[attr-defined]
             arg0,
             arg1,
@@ -2156,7 +2156,7 @@ def ulBitmapGetFormat(
     arg0: ULBitmap,
     /,
 ) -> ULBitmapFormat:
-    return (  # type: ignore[no-any-return]
+    return ULBitmapFormat(
         _base.get_lib().ulBitmapGetFormat(  # type: ignore[attr-defined]
             arg0,
         )
