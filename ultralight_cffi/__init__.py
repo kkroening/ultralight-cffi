@@ -1,5 +1,5 @@
 from . import _stubs
-from . import utils
+from . import glue
 from ._base import NULL
 from ._base import CData
 from ._base import Lib
@@ -20,12 +20,12 @@ __all__ = [
     'CData',
     'CustomSurface',
     'ffi',
+    'glue',
     'Lib',
     'load',
     'logger',
     'new',
     'NULL',
     'unpack',
-    'utils',
 ]
 __all__ += _stubs.__all__

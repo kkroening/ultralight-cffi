@@ -1,23 +1,10 @@
-"""Experimental utility methods/functionality for using Ultralight more Pythonically.
-
-This stuff will ideally be promoted to a less experimental status, but still distinct
-from the raw CFFI stubs layer because it's not part of the underlying SDK per se, and
-has its own subjective opinions on how to wrap the lower level library calls.
-
-This could potentially become a library of its own that leverages :mod:`ultralight_cffi`
-rather than extends it from within, but it's convenient to have it all in one library/
-repo for practical reasons.
-"""
-
 import contextlib
-from . import _base
-from . import _bindings
-from . import _ffi
-from . import _stubs
-from ._base import Pointer
+from .. import _base
+from .. import _ffi
+from .. import _stubs
+from . import _js_error
+from . import _jstr
 from collections.abc import Callable
-from collections.abc import Generator
-from contextlib import contextmanager
 from typing import TypeAlias
 from typing import cast
 
@@ -32,96 +19,13 @@ JFunctionCallable: TypeAlias = Callable[
 ]
 
 
-class UltralightError(Exception):
-    pass
-
-
-class UltralightJSError(UltralightError):
-    pass
-
-
-@contextmanager
-def ulstr_scope(
-    pystr: str,
-) -> Generator[_stubs.ULString, None, None]:
-    ulstr = _stubs.ulCreateStringUTF8(pystr.encode(), len(pystr.encode()))
-    try:
-        yield ulstr
-    finally:
-        _stubs.ulDestroyString(ulstr)
-
-
-def jstr_decode(
-    jstr: _stubs.JSStringRef,
-) -> str:
-    str_ptr = _stubs.JSStringGetCharactersPtr(jstr)
-    str_len = _stubs.JSStringGetLength(jstr)
-    try:
-        # Each UTF-16 character is 2 bytes
-        buffer = _bindings.ffi.buffer(str_ptr, str_len * 2)
-        buffer_view = buffer[:]
-        assert isinstance(buffer_view, memoryview)  # FIXME/TBD
-        result: str = buffer_view.decode('utf-16')  # type: ignore[attr-defined]
-    except UnicodeDecodeError as error:
-        raise ValueError(f'Failed to decode UTF-16 string: {error}') from error
-    return result
-
-
-@contextmanager
-def handle_ul_error() -> Generator[Pointer[_stubs.ULString], None, None]:
-    error_ulstr_ref = cast(Pointer[_stubs.ULString], _bindings.ffi.new('ULString *'))
-    try:
-        yield error_ulstr_ref
-    finally:
-        error_str = _stubs.ulStringGetData(error_ulstr_ref[0])
-        if error_str:
-            raise UltralightError(error_str)
-
-
-@contextmanager
-def handle_js_error(
-    ctx: _stubs.JSContextRef,
-) -> Generator[Pointer[_stubs.JSValueRef], None, None]:
-    error_jval_ref = cast(Pointer[_stubs.JSValueRef], _bindings.ffi.new('JSValueRef *'))
-    yield error_jval_ref
-    error_jval = error_jval_ref[0]
-    if error_jval:
-        error_str = jval_to_str(ctx, error_jval)  # Warning: potentially recursive
-        if error_str != '{}':
-            raise UltralightJSError(error_str)
-
-
-def jval_to_str(
-    ctx: _stubs.JSContextRef,
-    jval: _stubs.JSValueRef,
-    indent: int = 0,
-) -> str:
-    with handle_js_error(ctx) as error_jval_ref:  # Warning: potentially recursive
-        jstr = _stubs.JSValueCreateJSONString(
-            ctx,
-            jval,
-            indent,
-            error_jval_ref,
-        )
-    return jstr_decode(jstr)
-
-
-@contextmanager
-def jstr_scope(text: str) -> Generator[_stubs.JSStringRef, None, None]:
-    jstr = _stubs.JSStringCreateWithUTF8CString(text.encode())
-    try:
-        yield jstr
-    finally:
-        _stubs.JSStringRelease(jstr)
-
-
 def jobj_get_property(
     ctx: _stubs.JSContextRef,
     jobj: _stubs.JSObjectRef,
     prop_name: str,
 ) -> _stubs.JSValueRef:
-    with jstr_scope(prop_name) as prop_name_jstr:
-        with handle_js_error(ctx) as error_jval_ref:
+    with _jstr.jstr_scope(prop_name) as prop_name_jstr:
+        with _js_error.handle_js_error(ctx) as error_jval_ref:
             prop_value = _stubs.JSObjectGetProperty(
                 ctx, jobj, prop_name_jstr, error_jval_ref
             )
@@ -134,8 +38,8 @@ def jobj_set_property(
     prop_name: str,
     value: _stubs.JSValueRef,
 ) -> None:
-    with jstr_scope(prop_name) as prop_name_jstr:
-        with handle_js_error(ctx) as error_jval_ref:
+    with _jstr.jstr_scope(prop_name) as prop_name_jstr:
+        with _js_error.handle_js_error(ctx) as error_jval_ref:
             _stubs.JSObjectSetProperty(
                 ctx,
                 jobj,
@@ -157,7 +61,7 @@ def jobj_get_property_names(
             _stubs.JSPropertyNameArrayGetNameAtIndex(names_array, i)
             for i in range(name_count)
         ]
-        names = [jstr_decode(x) for x in name_jstrs]
+        names = [_jstr.jstr_decode(x) for x in name_jstrs]
     finally:
         _stubs.JSPropertyNameArrayRelease(names_array)
     return names
@@ -182,15 +86,15 @@ def jobj_new_function_from_script(
     starting_line_num: int = 0,
 ) -> _stubs.JSObjectRef:
     with contextlib.ExitStack() as exit_stack:
-        name_jstr = exit_stack.enter_context(jstr_scope(name))
+        name_jstr = exit_stack.enter_context(_jstr.jstr_scope(name))
         param_names_jstrs = _ffi.new(
             'JSStringRef[]',
-            [exit_stack.enter_context(jstr_scope(x)) for x in param_names],
+            [exit_stack.enter_context(_jstr.jstr_scope(x)) for x in param_names],
         )
-        body_jstr = exit_stack.enter_context(jstr_scope(script_body))
-        source_url_jstr = exit_stack.enter_context(jstr_scope(source_url))
+        body_jstr = exit_stack.enter_context(_jstr.jstr_scope(script_body))
+        source_url_jstr = exit_stack.enter_context(_jstr.jstr_scope(source_url))
 
-        with handle_js_error(ctx) as error_jval_ref:
+        with _js_error.handle_js_error(ctx) as error_jval_ref:
             jobj = _stubs.JSObjectMakeFunction(
                 ctx,
                 name_jstr,
@@ -221,10 +125,10 @@ def jobj_make_error(
         prematurely garbage collected by the JavaScript runtime.
     """
     arg_jvals_ref = cast(
-        Pointer[_stubs.JSValueRef], _ffi.new('JSValueRef[]', arg_jvals)
+        _base.Pointer[_stubs.JSValueRef], _ffi.new('JSValueRef[]', arg_jvals)
     )
 
-    with handle_js_error(ctx) as nested_error_jobj_ref:
+    with _js_error.handle_js_error(ctx) as nested_error_jobj_ref:
         error_jobj = _stubs.JSObjectMakeError(
             ctx,
             len(arg_jvals),
@@ -271,8 +175,8 @@ def jobj_wrap_callable(
         function_jobj: _stubs.JSObjectRef,
         this_jobj: _stubs.JSObjectRef,
         arg_count: int,
-        arg_jvals_ref: Pointer[_stubs.JSValueRef],
-        error_jval_ref: Pointer[_stubs.JSValueRef],
+        arg_jvals_ref: _base.Pointer[_stubs.JSValueRef],
+        error_jval_ref: _base.Pointer[_stubs.JSValueRef],
     ) -> _stubs.JSValueRef:
         arg_jvals = _ffi.unpack(arg_jvals_ref, arg_count)
 
@@ -290,7 +194,7 @@ def jobj_wrap_callable(
             )
 
             error_message = f'Error in JS->Python callback: {str(error)}'
-            with jstr_scope(error_message) as error_message_jstr:
+            with _jstr.jstr_scope(error_message) as error_message_jstr:
                 error_message_jval = _stubs.JSValueMakeString(ctx, error_message_jstr)
 
             error_jval_ref[0] = jobj_make_error(ctx, [error_message_jval])
@@ -330,27 +234,6 @@ def jobj_new_function_from_callable(
         https://docs.ultralig.ht/docs/garbage-collected-types
     """
     jcallback = jobj_wrap_callable(callback)
-    with jstr_scope(name) as name_jstr:
+    with _jstr.jstr_scope(name) as name_jstr:
         jobj = _stubs.JSObjectMakeFunctionWithCallback(ctx, name_jstr, jcallback)
     return jobj, jcallback
-
-
-__all__ = [
-    'handle_js_error',
-    'handle_ul_error',
-    'JFunctionCallable',
-    'jobj_get_property',
-    'jobj_get_property_names',
-    'jobj_make_error',
-    'jobj_new_function_from_callable',
-    'jobj_new_function_from_script',
-    'jobj_set_property',
-    'jobj_to_dict',
-    'jobj_wrap_callable',
-    'jstr_decode',
-    'jstr_scope',
-    'jval_to_str',
-    'ulstr_scope',
-    'UltralightError',
-    'UltralightJSError',
-]
