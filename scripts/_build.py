@@ -91,7 +91,7 @@ def _find_typedef_alias(
     alias: str | None
     type_id = id(type_obj)
     if type_id in typedef_map:
-        existing_obj, aliases = typedef_map.get(type_id)
+        existing_obj, aliases = typedef_map[type_id]
         assert existing_obj is type_obj
         alias = next(iter(aliases)) if len(aliases) == 1 else None
     else:
@@ -103,12 +103,15 @@ def _transform_function_ptr(
     typedef_map: _TypedefMap,
     type_obj: cffi.model.BaseTypeByIdentity,
 ) -> str:
+    type_obj_args: list[cffi.model.BaseTypeByIdentity] = type_obj.args  # type: ignore[attr-defined]
+    type_obj_result: cffi.model.BaseTypeByIdentity = type_obj.result  # type: ignore[attr-defined]
+
     arg_defs: list[str] = []
-    for arg_index, arg_type_obj in enumerate(type_obj.args):
+    for arg_index, arg_type_obj in enumerate(type_obj_args):
         arg_typename = _transform_field_typename(typedef_map, arg_type_obj)
         arg_defs.append(arg_typename)
     arg_def_text = ', '.join(arg_defs)
-    return_typename = _transform_field_typename(typedef_map, type_obj.result)
+    return_typename = _transform_field_typename(typedef_map, type_obj_result)
     return f'Callable[[{arg_def_text}], {return_typename}]'
 
 
@@ -180,7 +183,7 @@ def _transform_struct_typedef(
     typedef_map: _TypedefMap,
     type_name: str,
     type_obj: cffi.model.StructType,
-) -> str:
+) -> tuple[str, str]:
     assert type_name.startswith('typedef ')
     name = type_name.removeprefix('typedef ')
 
@@ -191,36 +194,36 @@ def _transform_struct_typedef(
             result += f'    {field_def}\n'
     else:
         result += '    ...\n'
-    return result
+    return name, result
 
 
 def _transform_enum_typedef(
     typedef_map: _TypedefMap,
     type_name: str,
     type_obj: cffi.model.EnumType,
-) -> str:
+) -> tuple[str, str]:
     assert type_name.startswith('typedef ')
-    name = type_name.removeprefix('typedef ')
+    symbol = type_name.removeprefix('typedef ')
 
-    result = f'class {name}(enum.IntEnum):\n'
+    code = f'class {symbol}(enum.IntEnum):\n'
     assert len(type_obj.enumerators) != 0 and len(type_obj.enumvalues) != 0
     for member_name, member_value in zip(type_obj.enumerators, type_obj.enumvalues):
-        result += f'    {member_name} = {member_value}\n'
-    result += '\n\n'
+        code += f'    {member_name} = {member_value}\n'
+    code += '\n\n'
 
     # Also add top-level aliases:
     for member_name, member_value in zip(type_obj.enumerators, type_obj.enumvalues):
-        result += f'{member_name} = {name}.{member_name}\n'
+        code += f'{member_name} = {symbol}.{member_name}\n'
 
-    result += '\n'
-    return result
+    code += '\n'
+    return symbol, code
 
 
 def _transform_function_type(
     typedef_map: _TypedefMap,
     type_name: str,
     type_obj: cffi.model.FunctionPtrType,
-) -> str:
+) -> tuple[str, str]:
     assert type_name.startswith('function ')
     func_name = type_name.removeprefix('function ')
 
@@ -252,7 +255,6 @@ def _transform_function_type(
     )
 
     # Check for special case(s) based on return type:
-
     if (  # Check if the return type is `char *`
         isinstance(type_obj.result, cffi.model.PointerType)
         and isinstance(type_obj.result.totype, cffi.model.PrimitiveType)
@@ -268,8 +270,8 @@ def _transform_function_type(
         # strings. If the API evolves to include different use cases, this logic may
         # need to be revisited and adjusted to accommodate those changes.
 
-        result = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
-        result += (
+        code = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
+        code += (
             f'    cdata_result = _base.get_lib().{func_name}('
             '  # type: ignore[attr-defined]\n'
             f'        {arg_values_text}\n'
@@ -280,8 +282,8 @@ def _transform_function_type(
         )
     else:
         # Default behavior
-        result = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
-        result += (
+        code = f'def {func_name}({arg_annotations_text}) -> {return_typename}:\n'
+        code += (
             f'    return ({ignore_return_type}\n'
             f'        _base.get_lib().{func_name}(  # type: ignore[attr-defined]\n'
             f'            {arg_values_text}\n'
@@ -289,29 +291,31 @@ def _transform_function_type(
             '    )'
         )
 
-    return result
+    return func_name, code
 
 
 def _transform_function_ptr_typedef(
     typedef_map: _TypedefMap,
     type_name: str,
     type_obj: cffi.model.FunctionPtrType,
-) -> str:
+) -> tuple[str, str]:
     assert type_name.startswith('typedef ')
-    name = type_name.removeprefix('typedef ')
+    symbol = type_name.removeprefix('typedef ')
     callable_text = _transform_function_ptr(typedef_map, type_obj)
-    return f'{name}: TypeAlias = {callable_text}\n'
+    code = f'{symbol}: TypeAlias = {callable_text}\n'
+    return symbol, code
 
 
 def _transform_declaration(
     typedef_map: _TypedefMap,
     type_name: str,
     type_obj: cffi.model.BaseTypeByIdentity,
-) -> str:
+) -> tuple[str | None, str | None]:
     assert isinstance(type_obj, cffi.model.BaseTypeByIdentity)
     _logger.debug('declaration: %s %r %r', type_name, type(type_obj), type_obj)
 
-    result: str
+    symbol: str | None
+    code: str | None
 
     if isinstance(type_obj, cffi.model.StructType):
         if type_name.startswith('typedef '):
@@ -319,7 +323,7 @@ def _transform_declaration(
             # Example: `typedef struct { float value[4]; } ULvec4;` - where `ULvec4`
             # becomes `class ULvec4: ...` with actual field definitions.
             #
-            result = _transform_struct_typedef(typedef_map, type_name, type_obj)
+            symbol, code = _transform_struct_typedef(typedef_map, type_name, type_obj)
 
         elif type_name.startswith('anonymous '):
             #
@@ -327,8 +331,10 @@ def _transform_declaration(
             # "anonymous" portion is the inner `struct { float value[4]; }` only, which
             # is redundant and thus skipped.
             #
-            alias = _find_typedef_alias(typedef_map, type_obj)
-            result = ''  # f'# anonymous struct: {type_name}; alias: {alias}\n'
+            symbol = None
+            code = None
+            # alias = _find_typedef_alias(typedef_map, type_obj)
+            # code = f'# anonymous struct: {type_name}; alias: {alias}\n'
 
         elif type_name.startswith('struct '):
             #
@@ -336,11 +342,13 @@ def _transform_declaration(
             # `struct C_String` needs to be declared as an empty `class C_String: ...`
             # so that the typedef for `ULString` can become `Pointer[C_String]`.
             #
-            name = type_name.removeprefix('struct ')
-            result = f'class {name}: ...\n'
+            symbol = type_name.removeprefix('struct ')
+            code = f'class {symbol}: ...\n'
 
         elif type_name.startswith('constant '):
-            result = f'# constant: {type_name}\n'  # TODO?
+            # symbol = type_name
+            symbol = None
+            code = f'# constant: {type_name}\n'  # TODO? `extern const` is tricky
 
         else:
             raise NotImplementedError(
@@ -349,25 +357,27 @@ def _transform_declaration(
 
     elif isinstance(type_obj, cffi.model.FunctionPtrType):
         if type_name.startswith('function '):
-            result = _transform_function_type(typedef_map, type_name, type_obj)
+            symbol, code = _transform_function_type(typedef_map, type_name, type_obj)
         elif type_name.startswith('typedef '):
-            result = _transform_function_ptr_typedef(typedef_map, type_name, type_obj)
+            symbol, code = _transform_function_ptr_typedef(
+                typedef_map, type_name, type_obj
+            )
         else:
             raise NotImplementedError(
                 f'Unsupported function pointer: {type_name} {type(type_obj)} {type_obj}'
             )
 
     elif isinstance(type_obj, cffi.model.PrimitiveType):
-        alias = _find_typedef_alias(typedef_map, type_obj)
-        result = (
-            ''  # f'# primitive type: {type_name}; {type(type_obj)}; alias: {alias}\n'
-        )
+        symbol = None
+        code = None
+        # alias = _find_typedef_alias(typedef_map, type_obj)
+        # code = f'# primitive type: {type_name}; {type(type_obj)}; alias: {alias}\n'
 
     elif isinstance(type_obj, cffi.model.PointerType):
         if type_name.startswith('typedef '):
-            name = type_name.removeprefix('typedef ')
+            symbol = type_name.removeprefix('typedef ')
             to_typename = _transform_field_typename(typedef_map, type_obj.totype)
-            result = f'{name}: TypeAlias = Pointer[{to_typename}]'
+            code = f'{symbol}: TypeAlias = Pointer[{to_typename}]'
         else:
             raise NotImplementedError(
                 f'Unsupported pointer: {type_name} {type(type_obj)} {type_obj}'
@@ -375,10 +385,12 @@ def _transform_declaration(
 
     elif isinstance(type_obj, cffi.model.EnumType):
         if type_name.startswith('typedef '):
-            result = _transform_enum_typedef(typedef_map, type_name, type_obj)
+            symbol, code = _transform_enum_typedef(typedef_map, type_name, type_obj)
         elif type_name.startswith('anonymous '):
-            alias = _find_typedef_alias(typedef_map, type_obj)
-            result = ''  # f'# anonymous enum: {type_name}; alias: {alias}\n'
+            symbol = None
+            code = None
+            # alias = _find_typedef_alias(typedef_map, type_obj)
+            # code = f'# anonymous enum: {type_name}; alias: {alias}\n'
         else:
             raise NotImplementedError(
                 f'Unsupported pointer enum: {type_name} {type(type_obj)} {type_obj}'
@@ -386,14 +398,14 @@ def _transform_declaration(
 
     else:
         alias = _find_typedef_alias(typedef_map, type_obj)
-        # result = (
+        # code = (
         #     f'# unknown obj: {type_name}; {type(type_obj)} {type_obj}; alias: {alias}\n'
         # )
         raise NotImplementedError(
             f'Unsupported type: {type_name} {type(type_obj)} {type_obj}; alias: {alias}'
         )
 
-    return result
+    return symbol, code
 
 
 def _transform_declarations(
@@ -401,7 +413,8 @@ def _transform_declarations(
 ) -> str:
     typedef_map = _get_typedef_map(declarations)
 
-    result = dedent(
+    symbols: list[str] = []
+    code = dedent(
         '''\
         """
         WARNING: This file is generated automatically by ``scripts/_build.py``.
@@ -417,11 +430,17 @@ def _transform_declarations(
         from . import _bindings
         '''
     )
+
     for type_name, (type_obj, _) in declarations.items():
         if type_name not in _SKIP_DECL_NAMES:
-            result += _transform_declaration(typedef_map, type_name, type_obj)
-            result += '\n'
-    return result
+            symbol, more_code = _transform_declaration(typedef_map, type_name, type_obj)
+            if more_code is not None:
+                code += more_code + '\n'
+            if symbol is not None:
+                symbols.append(symbol)
+
+    code += '__all__ = [' + ', '.join(sorted(repr(x) for x in symbols)) + ',]\n'
+    return code
 
 
 def create_ffibuilder() -> cffi.FFI:

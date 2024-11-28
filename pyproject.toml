@@ -54,7 +54,7 @@ use_parentheses = true
 
 [tool.mypy]
 extra_checks = true
-files = 'ultralight_cffi'
+files = 'ultralight_cffi,scripts/_build.py'
 mypy_path = 'stubs'
 namespace_packages = true
 no_implicit_optional = true

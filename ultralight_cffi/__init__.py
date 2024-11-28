@@ -7,6 +7,8 @@ from ._base import callback
 from ._base import load
 from ._base import logger
 from ._bindings import ffi
+from ._ffi import new
+from ._ffi import unpack
 from ._surface import CustomSurface
 
 # Note: wildcard imports generally suck, but since `_stubs.py` is auto-generated, this
@@ -14,7 +16,6 @@ from ._surface import CustomSurface
 from ._stubs import *  # isort: skip
 
 __all__ = [
-    'utils',
     'callback',
     'CData',
     'CustomSurface',
@@ -22,6 +23,9 @@ __all__ = [
     'Lib',
     'load',
     'logger',
+    'new',
     'NULL',
+    'unpack',
+    'utils',
 ]
-__all__ += [x for x in dir(_stubs) if not x.startswith('_')]
+__all__ += _stubs.__all__

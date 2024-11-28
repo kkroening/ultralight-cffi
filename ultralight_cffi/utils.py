@@ -12,17 +12,14 @@ repo for practical reasons.
 import contextlib
 from . import _base
 from . import _bindings
+from . import _ffi
 from . import _stubs
 from ._base import Pointer
 from collections.abc import Callable
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
-from typing import Any
-from typing import Literal
 from typing import TypeAlias
 from typing import cast
-from typing import overload
 
 JFunctionCallable: TypeAlias = Callable[
     [
@@ -41,64 +38,6 @@ class UltralightError(Exception):
 
 class UltralightJSError(UltralightError):
     pass
-
-
-if TYPE_CHECKING:
-
-    @overload
-    def ffi_new(
-        cdecl: Literal['JSStringRef[]'],
-        init: list[_stubs.JSStringRef | None],
-    ) -> Pointer[_stubs.JSStringRef]: ...
-    @overload
-    def ffi_new(
-        cdecl: Literal['JSValueRef[]'],
-        init: list[_stubs.JSValueRef | None],
-    ) -> Pointer[_stubs.JSValueRef]: ...
-    @overload
-    def ffi_new(
-        cdecl: str,
-        init: Any = ...,
-    ) -> Any: ...
-
-    def ffi_new(cdecl: str, init: Any = None) -> Any:
-        """Equivalent to ``ffi.new(...)`` but with proper static typing, based on the
-        ``cdecl`` argument.
-
-        In most cases, the ``cdecl`` argument is a string literal, in which case the static
-        typing can be inferred accordingly.
-
-        Todo:
-            Add other overload signatures, and promote this from the experimental
-            :mod:`ultralight_cffi.utils` to general availability.
-        """
-        # return _bindings.ffi.new(cdecl, init)
-
-    @overload
-    def ffi_unpack(
-        cdata: Pointer[_stubs.JSValueRef],
-        length: int,
-    ) -> list[_stubs.JSValueRef]: ...
-
-    @overload
-    def ffi_unpack(
-        cdata: _base.CData,
-        length: int,
-    ) -> bytes | str | list[Any]: ...
-
-    def ffi_unpack(
-        cdata: _base.CData | Pointer[_stubs.JSValueRef],
-        length: int,
-    ) -> bytes | str | list[Any]:
-        """Equivalent to ``ffi.unpack(...)`` but with proper static typing.
-
-        See :meth:`ffi_new` for explanation.
-        """
-        # return _bindings.ffi.unpack(cdata, length)  # type: ignore[arg-type]
-
-else:
-    ffi_new = _bindings.ffi.new
-    ffi_unpack = _bindings.ffi.unpack
 
 
 @contextmanager
@@ -244,7 +183,7 @@ def jobj_new_function_from_script(
 ) -> _stubs.JSObjectRef:
     with contextlib.ExitStack() as exit_stack:
         name_jstr = exit_stack.enter_context(jstr_scope(name))
-        param_names_jstrs = ffi_new(
+        param_names_jstrs = _ffi.new(
             'JSStringRef[]',
             [exit_stack.enter_context(jstr_scope(x)) for x in param_names],
         )
@@ -281,7 +220,9 @@ def jobj_make_error(
         It's the caller's responsibility to ensure that the resulting JS object is not
         prematurely garbage collected by the JavaScript runtime.
     """
-    arg_jvals_ref = cast(Pointer[_stubs.JSValueRef], ffi_new('JSValueRef[]', arg_jvals))
+    arg_jvals_ref = cast(
+        Pointer[_stubs.JSValueRef], _ffi.new('JSValueRef[]', arg_jvals)
+    )
 
     with handle_js_error(ctx) as nested_error_jobj_ref:
         error_jobj = _stubs.JSObjectMakeError(
@@ -333,7 +274,7 @@ def jobj_wrap_callable(
         arg_jvals_ref: Pointer[_stubs.JSValueRef],
         error_jval_ref: Pointer[_stubs.JSValueRef],
     ) -> _stubs.JSValueRef:
-        arg_jvals = ffi_unpack(arg_jvals_ref, arg_count)
+        arg_jvals = _ffi.unpack(arg_jvals_ref, arg_count)
 
         try:
             result = func(ctx, function_jobj, this_jobj, arg_jvals)
@@ -395,7 +336,6 @@ def jobj_new_function_from_callable(
 
 
 __all__ = [
-    'ffi_new',
     'handle_js_error',
     'handle_ul_error',
     'JFunctionCallable',
