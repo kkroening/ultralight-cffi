@@ -6,6 +6,7 @@ from . import js_str
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import TypeAlias
+from typing import overload
 
 PyValue: TypeAlias = str | int | float | bool | None
 """A type alias for primitive Python types that are easily convertable to respective
@@ -13,12 +14,48 @@ JavaScript values.
 """
 
 
+@overload
 def to_json_str(
     ctx: _stubs.JSContextRef,
     jval: _stubs.JSValueRef,
+    undefined_str: str,
+    indent: int = 0,
+) -> str: ...
+
+
+@overload
+def to_json_str(
+    ctx: _stubs.JSContextRef,
+    jval: _stubs.JSValueRef,
+    undefined_str: None = None,
+    indent: int = 0,
+) -> str | None: ...
+
+
+def to_json_str(
+    ctx: _stubs.JSContextRef,
+    jval: _stubs.JSValueRef,
+    undefined_str: str | None = None,
     indent: int = 0,
 ) -> str | None:
-    """Converts a JavaScript value into a Python JSON string representation."""
+    """Converts a JavaScript value into a Python JSON string representation.
+
+    Note:
+        The behavior around how to handle undefined values has subtle considerations.
+        In JavaScript, the behavior of ``JSON.stringify(undefined)`` is to return
+        ``undefined`` rather than a stringified `"null"` or `"undefined"`.  The default
+        behavior in :func:`to_json_str` mirrors that of ``JSON.stringify``: undefined
+        JS values are returned as None.
+
+        But this is in contrast to the behavior of Python's :func:`json.dumps`, which
+        returns ``"null"`` for ``json.dumps(None)``.  Such behavior can be achieved in
+        :func:`to_json_str` by passing ``undefined_str='null'`.
+
+        Alternatively, you might wish to pass ``undefined_str='undefined'`` so that
+        undefined values are serialized as ``"undefined"``, which can be useful when
+        :func:`to_json_str` is used for inspection, debugging, error messages, etc. -
+        but note that doing so makes the output non-JSON-compliant.
+    """
     with js_error.scoped(ctx) as error_jval_ref:  # potentially recursive
         jstr = _stubs.JSValueCreateJSONString(
             ctx,
@@ -27,12 +64,7 @@ def to_json_str(
             error_jval_ref,
         )
     if jstr == _ffi.NULL:
-        # The behavior of `JSON.stringify(undefined)` in JS is to return `undefined`
-        # rather than a string value of `"null"` or `"undefined"`.  In Python, this is
-        # analogous to returning None in the case of JS `undefined`.  But note that this
-        # is specific to _undefined_ JS values and not _null_ JS values, because null
-        # values become `"null"` when JSON stringified.
-        pyval = None
+        pyval = undefined_str
     else:
         try:
             pyval = js_str.decode(jstr)
@@ -52,7 +84,8 @@ def to_none(
     """
     if not _stubs.JSValueIsNull(ctx, jval) and not _stubs.JSValueIsUndefined(ctx, jval):
         raise TypeError(
-            f'Expected JavaScript value to be null or undefined: {to_json_str(ctx, jval)}'
+            'Expected JavaScript value to be null or undefined: '
+            f'{to_json_str(ctx, jval, "undefined")}'
         )
 
 
@@ -95,7 +128,8 @@ def to_bool(
         pyval = False
     elif strict and not _stubs.JSValueIsBoolean(ctx, jval):
         raise TypeError(
-            f'Expected JavaScript value to be a boolean: {to_json_str(ctx, jval)}'
+            'Expected JavaScript value to be a boolean: '
+            f'{to_json_str(ctx, jval, "undefined")}'
         )
     else:
         pyval = _stubs.JSValueToBoolean(ctx, jval)
@@ -121,10 +155,10 @@ def to_float(
     strict: bool = True,
 ) -> float:
     """Converts a JavaScript number value into a Python :class:`float`."""
-    assert jval != _ffi.NULL
     if strict and not _stubs.JSValueIsNumber(ctx, jval):
         raise TypeError(
-            f'Expected JavaScript value to be a number: {to_json_str(ctx, jval)}'
+            'Expected JavaScript value to be a number: '
+            f'{to_json_str(ctx, jval, "undefined")}'
         )
     with js_error.scoped(ctx) as error_jval_ref:
         pyval = _stubs.JSValueToNumber(ctx, jval, error_jval_ref)
@@ -156,13 +190,15 @@ def to_int(
         fractional (floating point) values, the conversion to Python consists of
         truncating the fractional portion (if any), of the JS number.
     """
-    assert jval != _ffi.NULL
     float_pyval = to_float(ctx, jval, strict=strict)
     if math.isnan(float_pyval):
-        raise ValueError(f'Cannot convert NaN to int: {to_json_str(ctx, jval)}')
+        raise ValueError(
+            f'Cannot convert NaN to int: {to_json_str(ctx, jval, "undefined")}'
+        )
     if not math.isfinite(float_pyval):
-        raise OverflowError(
-            f'Cannot convert infinite number to int: {to_json_str(ctx, jval)}'
+        raise ValueError(
+            'Cannot convert infinite number to int: '
+            f'{to_json_str(ctx, jval, "undefined")}'
         )
     return int(float_pyval)
 
@@ -189,7 +225,8 @@ def to_str(
 
     if strict and not _stubs.JSValueIsString(ctx, jval):
         raise TypeError(
-            f'Expected JavaScript value to be a string: {to_json_str(ctx, jval)}'
+            'Expected JavaScript value to be a string: '
+            f'{to_json_str(ctx, jval, "undefined")}'
         )
 
     with js_error.scoped(ctx) as error_jval_ref:
@@ -220,7 +257,7 @@ def to_python(
     ctx: _stubs.JSContextRef,
     jsval: _stubs.JSValueRef,
     *,
-    prefer_int: bool = True,
+    prefer_float: bool = False,
 ) -> PyValue:
     jtype = _stubs.JSValueGetType(ctx, jsval)
     pyval: PyValue
@@ -231,7 +268,7 @@ def to_python(
         case _stubs.kJSTypeString:
             pyval = to_str(ctx, jsval)
         case _stubs.kJSTypeNumber:
-            pyval = to_int(ctx, jsval) if prefer_int else to_float(ctx, jsval)
+            pyval = to_float(ctx, jsval) if prefer_float else to_int(ctx, jsval)
         case _stubs.kJSTypeBoolean:
             pyval = to_bool(ctx, jsval)
         # case _stubs.kJSTypeObject:  # TODO
@@ -248,16 +285,16 @@ def from_python(
     prefer_undefined: bool = False,
 ) -> _stubs.JSValueRef:
     """Converts a Python value into a corresponding JavaScript value."""
-    if isinstance(pyval, str):
-        jval = from_str(ctx, pyval)
-    elif isinstance(pyval, int):
-        jval = from_int(ctx, pyval)
-    elif isinstance(pyval, float):
-        jval = from_float(ctx, pyval)
+    if pyval is None:
+        jval = from_none(ctx, undefined=prefer_undefined)
     elif isinstance(pyval, bool):
         jval = from_bool(ctx, pyval)
-    elif pyval is None:
-        jval = from_none(ctx, undefined=prefer_undefined)
+    elif isinstance(pyval, float):
+        jval = from_float(ctx, pyval)
+    elif isinstance(pyval, int):
+        jval = from_int(ctx, pyval)
+    elif isinstance(pyval, str):
+        jval = from_str(ctx, pyval)
     else:
         raise NotImplementedError(
             f'Unable to convert Python object into JavaScript: {pyval}'

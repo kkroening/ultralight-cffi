@@ -4,269 +4,463 @@ import pytest
 import ultralight_cffi as ultra
 
 
-def test_to_json_str__conversions(faker, js_ctx):
-    actual = ultra.js_val.to_json_str(js_ctx, ultra.NULL)
-    assert actual == 'null'
+class Test_to_json_str__from_json_str:
+    @pytest.mark.parametrize('with_null_pointer', [False, True])
+    def test__null(self, js_ctx, with_null_pointer):
+        # Note: NULL pointers are distinct from null JS values.  `js_val.from_none`
+        # avoids ever creating NULL pointers though because it creates unnecessary,
+        # redundant situations.  In the majority of situations, NULL pointers should be
+        # avoided; but if absolutely necessary, `ultra.NULL` can be used (rather than
+        # `js_val.from_none`).
+        jval = ultra.NULL if with_null_pointer else ultra.js_val.from_none(js_ctx)
+        assert ultra.JSValueIsNull(js_ctx, jval) is True
+        assert ultra.JSValueIsUndefined(js_ctx, jval) is False
+        actual = ultra.js_val.to_json_str(js_ctx, jval)
+        assert actual == 'null'
 
-    null_jval = ultra.js_val.from_none(js_ctx)
-    actual = ultra.js_val.to_json_str(js_ctx, null_jval)
-    assert actual == 'null'
+    def test__undefined(self, js_ctx):
+        jval = ultra.js_val.from_none(js_ctx, undefined=True)
+        assert ultra.JSValueIsNull(js_ctx, jval) is False
+        assert ultra.JSValueIsUndefined(js_ctx, jval) is True
+        actual = ultra.js_val.to_json_str(js_ctx, jval)
+        assert actual is None
 
-    undefined_jval = ultra.js_val.from_none(js_ctx, undefined=True)
-    actual = ultra.js_val.to_json_str(js_ctx, undefined_jval)
-    assert actual is None
+    def test__bool(self, js_ctx):
+        jval = ultra.js_val.from_bool(js_ctx, True)
+        actual = ultra.js_val.to_json_str(js_ctx, jval)
+        assert actual == 'true'
 
-    bool_jval = ultra.js_val.from_bool(js_ctx, True)
-    actual = ultra.js_val.to_json_str(js_ctx, bool_jval)
-    assert actual == 'true'
+    def test__float(self, faker, js_ctx):
+        pyval = faker.pyfloat(3, 3)  # low precision avoids JSON rounding discrepancies
+        jval = ultra.js_val.from_float(js_ctx, pyval)
+        actual = ultra.js_val.to_json_str(js_ctx, jval)
+        assert actual == str(pyval)
 
-    float_pyval = 3.14  # low precision to avoid JSON discrepancies
-    float_jval = ultra.js_val.from_float(js_ctx, float_pyval)
-    actual = ultra.js_val.to_json_str(js_ctx, float_jval)
-    assert actual == str(float_pyval)
+    def test__nan(self, js_ctx):
+        # Note: Dumping NaN in JS (e.g. via `JSON.stringify(NaN)`) gives `"null"` - in
+        # contrast to Python's `json.dumps(float('nan'))` which gives `"NaN"`.
+        pyval = float('nan')
+        jval = ultra.js_val.from_float(js_ctx, pyval)
+        assert ultra.JSValueIsNumber(js_ctx, jval) is True
+        actual = ultra.js_val.to_json_str(js_ctx, jval)
+        assert actual == 'null'
 
-    int_pyval = faker.pyint()
-    int_jval = ultra.js_val.from_int(js_ctx, int_pyval)
-    actual = ultra.js_val.to_json_str(js_ctx, int_jval)
-    assert actual == str(int_pyval)
+    def test__int(self, faker, js_ctx):
+        pyval = faker.pyint()
+        jval = ultra.js_val.from_int(js_ctx, pyval)
+        actual = ultra.js_val.to_json_str(js_ctx, jval)
+        assert actual == str(pyval)
 
-    str_pyval = 'sample str'
-    with ultra.js_val.scoped(js_ctx, str_pyval) as str_jval:
-        actual = ultra.js_val.to_json_str(js_ctx, str_jval)
-    assert actual == json.dumps(str_pyval)
+    def test__str(self, faker, js_ctx):
+        pyval = faker.sentence()
+        jval = ultra.js_val.from_str(js_ctx, pyval)
+        actual = ultra.js_val.to_json_str(js_ctx, jval)
+        assert actual == json.dumps(pyval)
 
 
-def test_from_none__to_none(faker, js_ctx):
-    # Scenario - null:
-    null_jval = ultra.js_val.from_none(js_ctx)
-    assert ultra.JSValueIsNull(js_ctx, null_jval) is True
-    assert ultra.JSValueIsUndefined(js_ctx, null_jval) is False
-    actual = ultra.js_val.to_none(js_ctx, null_jval)
-    assert actual is None
+class Test_from_none__to_none:
+    @pytest.mark.parametrize('with_null_pointer', [False, True])
+    def test__null(self, js_ctx, with_null_pointer):
+        jval = ultra.NULL if with_null_pointer else ultra.js_val.from_none(js_ctx)
+        actual = ultra.js_val.to_none(js_ctx, jval)
+        assert actual is None
 
-    # Scenario - undefined:
-    undefined_jval = ultra.js_val.from_none(js_ctx, undefined=True)
-    assert ultra.JSValueIsNull(js_ctx, undefined_jval) is False
-    assert ultra.JSValueIsUndefined(js_ctx, undefined_jval) is True
-    actual = ultra.js_val.to_none(js_ctx, undefined_jval)
-    assert actual is None
+    def test__undefined(self, js_ctx):
+        jval = ultra.js_val.from_none(js_ctx, undefined=True)
+        actual = ultra.js_val.to_none(js_ctx, jval)
+        assert actual is None
 
-    # Scenario - str:
-    str_pyval = faker.sentence()
-    str_jval = ultra.js_val.from_str(js_ctx, str_pyval)
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_none(js_ctx, str_jval)
-    assert (
-        str(excinfo.value)
-        == f'Expected JavaScript value to be null or undefined: {json.dumps(str_pyval)}'
+    def test__bool(self, faker, js_ctx):
+        jval = ultra.js_val.from_bool(js_ctx, False)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_none(js_ctx, jval)
+        assert (
+            str(excinfo.value)
+            == 'Expected JavaScript value to be null or undefined: false'
+        )
+
+    def test__float(self, faker, js_ctx):
+        pyval = faker.pyfloat(3, 3)
+        jval = ultra.js_val.from_float(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_none(js_ctx, jval)
+        assert (
+            str(excinfo.value)
+            == f'Expected JavaScript value to be null or undefined: {pyval}'
+        )
+
+    def test__str(self, faker, js_ctx):
+        pyval = faker.sentence()
+        jval = ultra.js_val.from_str(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_none(js_ctx, jval)
+        assert (
+            str(excinfo.value)
+            == f'Expected JavaScript value to be null or undefined: {json.dumps(pyval)}'
+        )
+
+
+class Test_from_bool__to_bool:
+    def test__false(self, js_ctx):
+        jval = ultra.js_val.from_bool(js_ctx, False)
+        actual = ultra.js_val.to_bool(js_ctx, jval)
+        assert actual is False
+
+    def test__true(self, js_ctx):
+        jval = ultra.js_val.from_bool(js_ctx, True)
+        actual = ultra.js_val.to_bool(js_ctx, jval)
+        assert actual is True
+
+    @pytest.mark.parametrize('with_null_pointer', [False, True])
+    def test__null(self, js_ctx, with_null_pointer):
+        jval = ultra.NULL if with_null_pointer else ultra.js_val.from_none(js_ctx)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_bool(js_ctx, jval)
+        assert str(excinfo.value) == 'Expected JavaScript value to be a boolean: null'
+
+        actual = ultra.js_val.to_bool(js_ctx, jval, strict=False)
+        assert actual is False
+
+    def test__undefined(self, js_ctx):
+        jval = ultra.js_val.from_none(js_ctx, undefined=True)
+        assert ultra.JSValueIsUndefined(js_ctx, jval) is True
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_bool(js_ctx, jval)
+        assert (
+            str(excinfo.value) == 'Expected JavaScript value to be a boolean: undefined'
+        )
+
+        actual = ultra.js_val.to_bool(js_ctx, jval, strict=False)
+        assert actual is False
+
+    def test__falsy_number(self, js_ctx):
+        pyval = 0
+        jval = ultra.js_val.from_int(js_ctx, pyval)
+        actual = ultra.js_val.to_bool(js_ctx, jval, strict=False)
+        assert actual is False
+
+    def test__truthy_number(self, faker, js_ctx):
+        pyval = faker.pyint(1, 100)
+        jval = ultra.js_val.from_int(js_ctx, pyval)
+        actual = ultra.js_val.to_bool(js_ctx, jval, strict=False)
+        assert actual is True
+
+    def test__nan(self, js_ctx):
+        pyval = float('nan')
+        jval = ultra.js_val.from_float(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_bool(js_ctx, jval)
+        assert str(excinfo.value) == 'Expected JavaScript value to be a boolean: null'
+
+        actual = ultra.js_val.to_bool(js_ctx, jval, strict=False)
+        assert actual is False
+
+    def test__falsy_string(self, js_ctx):
+        jval = ultra.js_val.from_str(js_ctx, '')
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_bool(js_ctx, jval)
+        assert str(excinfo.value) == 'Expected JavaScript value to be a boolean: ""'
+
+        actual = ultra.js_val.to_bool(js_ctx, jval, strict=False)
+        assert actual is False
+
+    def test__false_string(self, js_ctx):
+        # Similar to the other truthy/falsy string coercion scenarios, but with the
+        # text `"false"` to confirm that the JS runtime does not try to parse the text
+        # as a boolean (i.e. behaving just like Python, where `bool('False')` is True).
+        jval = ultra.js_val.from_str(js_ctx, 'false')
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_bool(js_ctx, jval)
+        assert (
+            str(excinfo.value) == 'Expected JavaScript value to be a boolean: "false"'
+        )
+
+        actual = ultra.js_val.to_bool(js_ctx, jval, strict=False)
+        assert actual is True
+
+    def test__truthy_string(self, faker, js_ctx):
+        pyval = faker.sentence()
+        jval = ultra.js_val.from_str(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_bool(js_ctx, jval)
+        assert (
+            str(excinfo.value)
+            == f'Expected JavaScript value to be a boolean: "{pyval}"'
+        )
+        actual = ultra.js_val.to_bool(js_ctx, jval, strict=False)
+        assert actual is True
+
+
+class Test_from_float__to_float:
+    def test__float(self, faker, js_ctx):
+        pyval = faker.pyfloat(3, 3)
+        jval = ultra.js_val.from_float(js_ctx, pyval)
+        actual = ultra.js_val.to_float(js_ctx, jval)
+        assert actual == pyval
+
+    def test__nan(self, js_ctx):
+        pyval = float('nan')
+        jval = ultra.js_val.from_float(js_ctx, pyval)
+        actual = ultra.js_val.to_float(js_ctx, jval)
+        assert math.isnan(actual)
+
+    @pytest.mark.parametrize('negative', [False, True])
+    def test__infinity(self, js_ctx, negative):
+        pyval = float('-inf' if negative else 'inf')
+        jval = ultra.js_val.from_float(js_ctx, pyval)
+        actual = ultra.js_val.to_float(js_ctx, jval)
+        assert actual == pyval
+
+    @pytest.mark.parametrize('with_null_pointer', [False, True])
+    def test__null(self, js_ctx, with_null_pointer):
+        jval = ultra.NULL if with_null_pointer else ultra.js_val.from_none(js_ctx)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_float(js_ctx, jval)
+        assert str(excinfo.value) == 'Expected JavaScript value to be a number: null'
+
+        actual = ultra.js_val.to_float(js_ctx, jval, strict=False)
+        assert actual == 0.0
+
+    def test__bool(self, js_ctx):
+        pyval = True
+        jval = ultra.js_val.from_bool(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_float(js_ctx, jval)
+        assert str(excinfo.value) == 'Expected JavaScript value to be a number: true'
+
+        actual = ultra.js_val.to_float(js_ctx, jval, strict=False)
+        assert actual == float(pyval)
+
+    def test__string_empty(self, js_ctx):
+        pyval = ''
+        jval = ultra.js_val.from_str(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_float(js_ctx, jval)
+        assert (
+            str(excinfo.value) == f'Expected JavaScript value to be a number: "{pyval}"'
+        )
+
+        actual = ultra.js_val.to_float(js_ctx, jval, strict=False)
+        assert actual == 0.0
+
+    def test__string_non_numeric(self, faker, js_ctx):
+        pyval = faker.sentence()
+        jval = ultra.js_val.from_str(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_float(js_ctx, jval)
+        assert (
+            str(excinfo.value) == f'Expected JavaScript value to be a number: "{pyval}"'
+        )
+
+        actual = ultra.js_val.to_float(js_ctx, jval, strict=False)
+        assert math.isnan(actual)
+
+    def test__stringified_float(self, faker, js_ctx):
+        pyval = faker.pyfloat(3, 3)
+        jval = ultra.js_val.from_str(js_ctx, str(pyval))
+        actual = ultra.js_val.to_float(js_ctx, jval, strict=False)
+        assert actual == pyval
+
+    def test__stringified_nan(self, js_ctx):
+        jval = ultra.js_val.from_str(js_ctx, 'nan')
+        actual = ultra.js_val.to_float(js_ctx, jval, strict=False)
+        assert math.isnan(actual)
+
+    @pytest.mark.parametrize('negative', [False, True])
+    def test__stringified_infinity(self, js_ctx, negative):
+        pyval = float('-inf' if negative else 'inf')
+        jval = ultra.js_val.from_str(js_ctx, '-Infinity' if negative else 'Infinity')
+        actual = ultra.js_val.to_float(js_ctx, jval, strict=False)
+        assert not math.isnan(actual)
+        assert not math.isfinite(actual)
+        assert actual == pyval
+
+
+class Test_from_int__to_int:
+    def test__int(self, faker, js_ctx):
+        pyval = faker.pyint(1, 1000)
+        jval = ultra.js_val.from_int(js_ctx, pyval)
+        actual = ultra.js_val.to_int(js_ctx, jval)
+        assert actual == pyval
+
+    @pytest.mark.parametrize('with_null_pointer', [False, True])
+    def test__null(self, js_ctx, with_null_pointer):
+        jval = ultra.NULL if with_null_pointer else ultra.js_val.from_none(js_ctx)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_int(js_ctx, jval)
+        assert str(excinfo.value) == 'Expected JavaScript value to be a number: null'
+
+        actual = ultra.js_val.to_int(js_ctx, jval, strict=False)
+        assert actual == 0
+
+    def test__bool(self, js_ctx):
+        pyval = True
+        jval = ultra.js_val.from_bool(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_int(js_ctx, jval)
+        assert str(excinfo.value) == 'Expected JavaScript value to be a number: true'
+
+        actual = ultra.js_val.to_int(js_ctx, jval, strict=False)
+        assert actual == int(pyval)
+
+    def test__float(self, faker, js_ctx):
+        pyval = (
+            faker.pyint(-100, 100) + 0.8
+        )  # >0.5 offset to confirm truncation rather than rounding
+        jval = ultra.js_val.from_float(js_ctx, pyval)
+        actual = ultra.js_val.to_int(js_ctx, jval)
+        assert actual == int(pyval)
+
+    @pytest.mark.parametrize(
+        'pyval',
+        [
+            'false',
+            'nan',
+            'null',
+            'sample str',
+            'true',
+        ],
     )
+    def test__string_non_numeric(self, js_ctx, pyval):
+        jval = ultra.js_val.from_str(js_ctx, pyval)
+
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_int(js_ctx, jval)
+        assert (
+            str(excinfo.value) == f'Expected JavaScript value to be a number: "{pyval}"'
+        )
+
+        with pytest.raises(ValueError) as excinfo:
+            ultra.js_val.to_int(js_ctx, jval, strict=False)
+        assert str(excinfo.value) == f'Cannot convert NaN to int: "{pyval}"'
+
+    @pytest.mark.parametrize('negative', [False, True])
+    def test__stringified_infinity(self, js_ctx, negative):
+        pyval = '-Infinity' if negative else 'Infinity'
+        jval = ultra.js_val.from_str(js_ctx, pyval)
+
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_int(js_ctx, jval)
+        assert (
+            str(excinfo.value) == f'Expected JavaScript value to be a number: "{pyval}"'
+        )
+
+        with pytest.raises(ValueError) as excinfo:
+            ultra.js_val.to_int(js_ctx, jval, strict=False)
+        assert str(excinfo.value) == f'Cannot convert infinite number to int: "{pyval}"'
+
+    def test__stringified_float(self, faker, js_ctx):
+        pyval = faker.pyfloat(3, 3)
+        jval = ultra.js_val.from_str(js_ctx, str(pyval))
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_int(js_ctx, jval)
+        assert (
+            str(excinfo.value) == f'Expected JavaScript value to be a number: "{pyval}"'
+        )
+
+        actual = ultra.js_val.to_int(js_ctx, jval, strict=False)
+        assert actual == int(pyval)
 
 
-def test_from_bool__to_bool(faker, js_ctx):
-    # Scenario - false:
-    bool_jval = ultra.js_val.from_bool(js_ctx, False)
-    actual = ultra.js_val.to_bool(js_ctx, bool_jval)
-    assert actual is False
+class Test_from_str__to_str:
+    def test__str(self, faker, js_ctx):
+        pyval = faker.sentence()
+        jval = ultra.js_val.from_str(js_ctx, pyval)
+        actual = ultra.js_val.to_str(js_ctx, jval)
+        assert actual == pyval
 
-    # Scenario - true:
-    bool_jval = ultra.js_val.from_bool(js_ctx, True)
-    actual = ultra.js_val.to_bool(js_ctx, bool_jval)
-    assert actual is True
+    @pytest.mark.parametrize('with_null_pointer', [False, True])
+    def test__null(self, js_ctx, with_null_pointer):
+        jval = ultra.NULL if with_null_pointer else ultra.js_val.from_none(js_ctx)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_str(js_ctx, jval)
+        assert str(excinfo.value) == 'Expected JavaScript value to be a string: null'
+        actual = ultra.js_val.to_str(js_ctx, jval, strict=False)
+        assert actual == 'null'
 
-    # Scenario - null coercion:
-    null_jval = ultra.js_val.from_none(js_ctx)
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_bool(js_ctx, null_jval)
-    assert str(excinfo.value) == 'Expected JavaScript value to be a boolean: null'
-    actual = ultra.js_val.to_bool(js_ctx, null_jval, strict=False)
-    assert actual is False
+    def test__undefined(self, js_ctx):
+        jval = ultra.js_val.from_none(js_ctx, undefined=True)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_str(js_ctx, jval)
+        assert (
+            str(excinfo.value) == 'Expected JavaScript value to be a string: undefined'
+        )
+        actual = ultra.js_val.to_str(js_ctx, jval, strict=False)
+        assert actual == 'undefined'
 
-    # Scenario - undefined coercion:
-    undefined_jval = ultra.js_val.from_none(js_ctx, undefined=True)
-    assert ultra.JSValueIsUndefined(js_ctx, undefined_jval) is True
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_bool(js_ctx, undefined_jval)
-    assert str(excinfo.value) == 'Expected JavaScript value to be a boolean: None'
-    actual = ultra.js_val.to_bool(js_ctx, undefined_jval, strict=False)
-    assert actual is False
+    def test__bool(self, js_ctx):
+        pyval = True
+        jval = ultra.js_val.from_bool(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_str(js_ctx, jval)
+        assert str(excinfo.value) == 'Expected JavaScript value to be a string: true'
+        actual = ultra.js_val.to_str(js_ctx, jval, strict=False)
+        assert actual == 'true'
 
-    # Scenario - falsy number coercion:
-    int_pyval = 0
-    int_jval = ultra.js_val.from_int(js_ctx, int_pyval)
-    actual = ultra.js_val.to_bool(js_ctx, int_jval, strict=False)
-    assert actual is False
+    def test__float(self, faker, js_ctx):
+        pyval = faker.pyfloat(3, 3)
+        jval = ultra.js_val.from_float(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_str(js_ctx, jval)
+        assert (
+            str(excinfo.value) == f'Expected JavaScript value to be a string: {pyval}'
+        )
+        actual = ultra.js_val.to_str(js_ctx, jval, strict=False)
+        assert actual == str(pyval)
 
-    # Scenario - truthy number coercion:
-    int_pyval = faker.pyint(1, 100)
-    int_jval = ultra.js_val.from_int(js_ctx, int_pyval)
-    actual = ultra.js_val.to_bool(js_ctx, int_jval, strict=False)
-    assert actual is True
-
-    # Scenario - nan coercion:
-    nan_pyval = float('nan')
-    nan_jval = ultra.js_val.from_float(js_ctx, nan_pyval)
-    actual = ultra.js_val.to_bool(js_ctx, nan_jval, strict=False)
-    assert actual is False
-
-    # Scenario - falsy string coercion:
-    falsy_str_jval = ultra.js_val.from_str(js_ctx, '')
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_bool(js_ctx, falsy_str_jval)
-    assert str(excinfo.value) == 'Expected JavaScript value to be a boolean: ""'
-    actual = ultra.js_val.to_bool(js_ctx, falsy_str_jval, strict=False)
-    assert actual is False
-
-    # Scenario - "false" string coercion:
-    false_str_jval = ultra.js_val.from_str(js_ctx, 'false')
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_bool(js_ctx, false_str_jval)
-    assert str(excinfo.value) == 'Expected JavaScript value to be a boolean: "false"'
-    actual = ultra.js_val.to_bool(js_ctx, false_str_jval, strict=False)
-    assert actual is True
-
-    # Scenario - truthy string coercion:
-    truthy_str_pyval = faker.sentence()
-    truthy_str_jval = ultra.js_val.from_str(js_ctx, truthy_str_pyval)
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_bool(js_ctx, truthy_str_jval)
-    assert (
-        str(excinfo.value)
-        == f'Expected JavaScript value to be a boolean: "{truthy_str_pyval}"'
-    )
-    actual = ultra.js_val.to_bool(js_ctx, truthy_str_jval, strict=False)
-    assert actual is True
+    def test__int(self, faker, js_ctx):
+        pyval = faker.pyint()
+        jval = ultra.js_val.from_int(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            ultra.js_val.to_str(js_ctx, jval)
+        assert (
+            str(excinfo.value) == f'Expected JavaScript value to be a string: {pyval}'
+        )
+        actual = ultra.js_val.to_str(js_ctx, jval, strict=False)
+        assert actual == str(pyval)
 
 
-def test_from_float__to_float(faker, js_ctx):
-    # Scenario - float:
-    float_pyval = 3.14
-    float_jval = ultra.js_val.from_float(js_ctx, float_pyval)
-    actual = ultra.js_val.to_float(js_ctx, float_jval)
-    assert actual == float_pyval
+class Test_from_python__to_python:
+    @pytest.mark.parametrize('prefer_undefined', [False, True])
+    def test__none(self, js_ctx, prefer_undefined):
+        jval = ultra.js_val.from_python(js_ctx, None, prefer_undefined=prefer_undefined)
+        assert ultra.js_val.to_python(js_ctx, jval) is None
 
-    # Scenario - string coercion:
-    str_pyval = faker.sentence()
-    str_jval = ultra.js_val.from_str(js_ctx, str_pyval)
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_float(js_ctx, str_jval)
-    assert (
-        str(excinfo.value) == f'Expected JavaScript value to be a number: "{str_pyval}"'
-    )
+    def test__bool(self, faker, js_ctx):
+        pyval = faker.pybool()
+        jval = ultra.js_val.from_python(js_ctx, pyval)
+        assert ultra.js_val.to_python(js_ctx, jval) is pyval
 
-    # Scenario - float coercion:
-    str_jval = ultra.js_val.from_str(js_ctx, str_pyval)
-    actual = ultra.js_val.to_float(js_ctx, str_jval, strict=False)
-    assert math.isnan(actual)
+    def test__float(self, faker, js_ctx):
+        pyval = faker.pyfloat(3, 3)
+        jval = ultra.js_val.from_python(js_ctx, pyval)
+        assert ultra.js_val.to_python(js_ctx, jval, prefer_float=True) == pyval
 
-    # TODO: more scenarios
+    def test__int(self, faker, js_ctx):
+        pyval = faker.pyint()
+        jval = ultra.js_val.from_python(js_ctx, pyval)
+        assert ultra.js_val.to_python(js_ctx, jval) == pyval
 
-
-def test_from_int__to_int(faker, js_ctx):
-    # Scenario - int:
-    int_pyval = faker.pyint(1, 1000)
-    int_jval = ultra.js_val.from_int(js_ctx, int_pyval)
-    actual = ultra.js_val.to_int(js_ctx, int_jval)
-    assert actual == int_pyval
-
-    # Scenario - bool coercion:
-    bool_pyval = True
-    bool_jval = ultra.js_val.from_bool(js_ctx, bool_pyval)
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_int(js_ctx, bool_jval)
-    assert str(excinfo.value) == 'Expected JavaScript value to be a number: true'
-    actual = ultra.js_val.to_int(js_ctx, bool_jval, strict=False)
-    assert actual == int(bool_pyval)
-
-    # Scenario - float coercion:
-    float_pyval = int_pyval + 0.8  # >0.5 confirms truncation rather than rounding
-    float_jval = ultra.js_val.from_float(js_ctx, float_pyval)
-    actual = ultra.js_val.to_int(js_ctx, float_jval)
-    assert actual == int(float_pyval)
-
-    # Scenario - stringified bool coercion failure:
-    # (Even in non-strict mode, strings that can't be converted to numbers are
-    # considered to be an error)
-    str_pyval = 'true'
-    str_jval = ultra.js_val.from_str(js_ctx, str_pyval)
-    with pytest.raises(ValueError) as excinfo:
-        ultra.js_val.to_int(js_ctx, str_jval, strict=False)
-    assert str(excinfo.value) == f'Cannot convert NaN to int: "{str_pyval}"'
-
-    # Scenario - stringified integer:
-    str_int_pyval = str(int_pyval)
-    str_int_jval = ultra.js_val.from_str(js_ctx, str_int_pyval)
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_int(js_ctx, str_int_jval)
-    assert (
-        str(excinfo.value)
-        == f'Expected JavaScript value to be a number: "{str_int_pyval}"'
-    )
-    actual = ultra.js_val.to_int(js_ctx, str_int_jval, strict=False)
-    assert actual == int_pyval
-
-    # Scenario - stringified float coercion:
-    str_float_pyval = str(float_pyval)
-    str_float_jval = ultra.js_val.from_str(js_ctx, str_float_pyval)
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_int(js_ctx, str_float_jval)
-    assert (
-        str(excinfo.value)
-        == f'Expected JavaScript value to be a number: "{str_float_pyval}"'
-    )
-    actual = ultra.js_val.to_int(js_ctx, str_float_jval, strict=False)
-    assert actual == int_pyval
+    def test__str(self, faker, js_ctx):
+        pyval = faker.sentence()
+        jval = ultra.js_val.from_python(js_ctx, pyval)
+        assert ultra.js_val.to_python(js_ctx, jval) == pyval
 
 
-def test_from_str__to_str(faker, js_ctx):
-    # Scenario - string:
-    str_pyval = faker.sentence()
-    str_jval = ultra.js_val.from_str(js_ctx, str_pyval)
-    actual = ultra.js_val.to_str(js_ctx, str_jval)
-    assert actual == str_pyval
+def test_scoped(faker, js_ctx):
+    pyval1 = faker.sentence()
+    pyval2 = faker.sentence()
+    with ultra.js_val.scoped(js_ctx, pyval1) as jval1:
+        assert ultra.js_val.to_python(js_ctx, jval1) == pyval1
+        with ultra.js_val.scoped(js_ctx, jval1) as jval1:
+            assert ultra.js_val.to_python(js_ctx, jval1) == pyval1
+        with ultra.js_val.scoped(js_ctx, pyval2) as jval2:
+            assert ultra.js_val.to_python(js_ctx, jval2) == pyval2
+        assert ultra.js_val.to_python(js_ctx, jval1) == pyval1
 
-    # Scenario - null coercion:
-    null_jval = ultra.js_val.from_none(js_ctx)
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_str(js_ctx, null_jval)
-    assert str(excinfo.value) == 'Expected JavaScript value to be a string: null'
-    actual = ultra.js_val.to_str(js_ctx, null_jval, strict=False)
-    assert actual == 'null'
-
-    # Scenario - bool coercion:
-    bool_pyval = True
-    bool_jval = ultra.js_val.from_bool(js_ctx, bool_pyval)
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_str(js_ctx, bool_jval)
-    assert str(excinfo.value) == 'Expected JavaScript value to be a string: true'
-    actual = ultra.js_val.to_str(js_ctx, bool_jval, strict=False)
-    assert actual == 'true'
-
-    # Scenario - float coercion:
-    float_pyval = 3.14
-    float_jval = ultra.js_val.from_float(js_ctx, float_pyval)
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_str(js_ctx, float_jval)
-    assert (
-        str(excinfo.value) == f'Expected JavaScript value to be a string: {float_pyval}'
-    )
-    actual = ultra.js_val.to_str(js_ctx, float_jval, strict=False)
-    assert actual == str(float_pyval)
-
-    # Scenario - int coercion:
-    int_pyval = faker.pyint()
-    int_jval = ultra.js_val.from_int(js_ctx, int_pyval)
-    with pytest.raises(TypeError) as excinfo:
-        ultra.js_val.to_str(js_ctx, int_jval)
-    assert (
-        str(excinfo.value) == f'Expected JavaScript value to be a string: {int_pyval}'
-    )
-    actual = ultra.js_val.to_str(js_ctx, int_jval, strict=False)
-    assert actual == str(int_pyval)
-
-
-def test_from_python__to_python():
-    pass  # TODO: test
-
-
-def test_scoped():
-    pass  # TODO: test
+    # Note: technically the value will still exist after the scope, except that the
+    # value is no longer protected from garbage collection, which can happen either
+    # explicitly by calling `JSGarbageCollect`, or implicitly.  Accessing the value
+    # after garbage collection results in undefined behavior - potentially even
+    # segfault.
+    ultra.JSGarbageCollect(js_ctx)
