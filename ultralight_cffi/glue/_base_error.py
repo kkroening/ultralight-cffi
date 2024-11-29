@@ -14,3 +14,8 @@ class UltralightError(Exception):
         :meth:`.._stubs.JSEvaluateScript`, :meth:`..stubs.ulViewEvaluateScript`, etc.
         methods.
     """
+
+
+__all__ = [
+    'UltralightError',
+]

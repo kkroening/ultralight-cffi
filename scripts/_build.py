@@ -268,7 +268,7 @@ def _transform_function_type(
         # need to be revisited and adjusted to accommodate those changes.
 
         code += (
-            f'    cdata_result = _base.get_lib().{func_name}('
+            f'    cdata_result = _ffi.get_lib().{func_name}('
             '  # type: ignore[attr-defined]\n'
             f'        {arg_values_text}\n'
             '    )\n'
@@ -293,7 +293,7 @@ def _transform_function_type(
 
         code += (
             f'    return {return_typecast}({ignore_return_type}\n'
-            f'        _base.get_lib().{func_name}(  # type: ignore[attr-defined]\n'
+            f'        _ffi.get_lib().{func_name}(  # type: ignore[attr-defined]\n'
             f'            {arg_values_text}\n'
             '        )'
             '    )'
@@ -430,12 +430,12 @@ def _transform_declarations(
         """
 
         import enum
+        from . import _bindings
+        from . import _ffi
+        from ._ffi import Pointer
         from collections.abc import Callable
         from typing import Any
         from typing import TypeAlias
-        from ._base import Pointer
-        from . import _base
-        from . import _bindings
         '''
     )
 

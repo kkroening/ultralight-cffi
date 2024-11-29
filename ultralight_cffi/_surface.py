@@ -1,9 +1,9 @@
 import abc
 import inspect
-from . import _base
+from . import _ffi
 from . import _stubs
-from ._base import CData
 from ._bindings import ffi
+from ._ffi import CData
 from typing import Any
 from typing import ClassVar
 from typing import Self
@@ -47,7 +47,7 @@ class CustomSurface(abc.ABC):
     @classmethod
     def from_ffi(
         cls,
-        lib: _base.Lib,  # FIXME: use context instead
+        lib: _ffi.Lib,  # FIXME: use context instead
         ul_surface: Any,
     ) -> Self:
         user_data = lib.ulSurfaceGetUserData(ul_surface)  # type: ignore[attr-defined]
@@ -91,50 +91,50 @@ class CustomSurface(abc.ABC):
         raise NotImplementedError()
 
     @staticmethod
-    @_base.callback('void(void*)')
+    @_ffi.callback('void(void*)')
     def _cb__destroy(user_data: CData) -> None:
         surface = ffi.from_handle(user_data)
         surface.destroy()
         del surface
 
     @staticmethod
-    @_base.callback('unsigned int(void*)')
+    @_ffi.callback('unsigned int(void*)')
     def _cb__get_width(user_data: CData) -> int:
         surface: CustomSurface = ffi.from_handle(user_data)
         return surface.get_width()
 
     @staticmethod
-    @_base.callback('unsigned int(void*)')
+    @_ffi.callback('unsigned int(void*)')
     def _cb__get_height(user_data: CData) -> int:
         surface: CustomSurface = ffi.from_handle(user_data)
         return surface.get_height()
 
     @staticmethod
-    @_base.callback('unsigned int(void*)')
+    @_ffi.callback('unsigned int(void*)')
     def _cb__get_row_bytes(user_data: CData) -> int:
         surface: CustomSurface = ffi.from_handle(user_data)
         return surface.get_row_bytes()
 
     @staticmethod
-    @_base.callback('size_t(void*)')
+    @_ffi.callback('size_t(void*)')
     def _cb__get_size(user_data: CData) -> int:
         surface: CustomSurface = ffi.from_handle(user_data)
         return surface.get_size()
 
     @staticmethod
-    @_base.callback('void*(void*)')
+    @_ffi.callback('void*(void*)')
     def _cb__lock_pixels(user_data: CData) -> Any:
         surface: CustomSurface = ffi.from_handle(user_data)
         return ffi.from_buffer(surface.lock_pixels())
 
     @staticmethod
-    @_base.callback('void(void*)')
+    @_ffi.callback('void(void*)')
     def _cb__unlock_pixels(user_data: CData) -> None:
         surface: CustomSurface = ffi.from_handle(user_data)
         surface.unlock_pixels()
 
     @staticmethod
-    @_base.callback('void(void*, unsigned int, unsigned int)')
+    @_ffi.callback('void(void*, unsigned int, unsigned int)')
     def _cb__resize(user_data: CData, width: int, height: int) -> None:
         surface: CustomSurface = ffi.from_handle(user_data)
         return surface.resize(width, height)
@@ -152,7 +152,7 @@ class CustomSurface(abc.ABC):
         a class variable in order to prevent premature garbage collection.
         """
 
-        @_base.callback('void*(unsigned int, unsigned int)')
+        @_ffi.callback('void*(unsigned int, unsigned int)')
         def _cb__create(width: int, height: int) -> CData:
             surface = cls.create(width, height)
             return surface._handle  # pylint: disable=protected-access

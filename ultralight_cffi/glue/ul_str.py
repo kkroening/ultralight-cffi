@@ -12,3 +12,8 @@ def scoped(
         yield ulstr
     finally:
         _stubs.ulDestroyString(ulstr)
+
+
+__all__ = [
+    'scoped',
+]

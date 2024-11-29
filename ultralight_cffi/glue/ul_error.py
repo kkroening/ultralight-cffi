@@ -1,4 +1,3 @@
-from .. import _base
 from .. import _ffi
 from .. import _stubs
 from . import _base_error
@@ -21,11 +20,18 @@ class UltralightULError(_base_error.UltralightError):
 
 
 @contextmanager
-def scoped() -> Generator[_base.Pointer[_stubs.ULString], None, None]:
+def scoped() -> Generator[_ffi.Pointer[_stubs.ULString], None, None]:
     error_ulstr_ref = _ffi.new('ULString *')
     try:
         yield error_ulstr_ref
     finally:
-        error_str = _stubs.ulStringGetData(error_ulstr_ref[0])
+        error_ulstr = error_ulstr_ref[0]  # pylint: disable=unsubscriptable-object
+        error_str = _stubs.ulStringGetData(error_ulstr)
         if error_str:
             raise UltralightULError(error_str)
+
+
+__all__ = [
+    'scoped',
+    'UltralightULError',
+]

@@ -1,5 +1,4 @@
 import contextlib
-from .. import _base
 from .. import _ffi
 from .. import _stubs
 from . import js_error
@@ -135,7 +134,7 @@ def new_error(
         prematurely garbage collected by the JavaScript runtime.
     """
     arg_jvals_ref = cast(
-        _base.Pointer[_stubs.JSValueRef], _ffi.new('JSValueRef[]', arg_jvals)
+        _ffi.Pointer[_stubs.JSValueRef], _ffi.new('JSValueRef[]', arg_jvals)
     )
 
     with js_error.scoped(ctx) as nested_error_jobj_ref:
@@ -179,14 +178,14 @@ def wrap_callable(
         something to be aware of and ideally fixed in the future.
     """
 
-    @_base.callback('JSObjectCallAsFunctionCallback')
+    @_ffi.callback('JSObjectCallAsFunctionCallback')
     def wrapper(
         ctx: _stubs.JSContextRef,
         function_jobj: _stubs.JSObjectRef,
         this_jobj: _stubs.JSObjectRef,
         arg_count: int,
-        arg_jvals_ref: _base.Pointer[_stubs.JSValueRef],
-        error_jval_ref: _base.Pointer[_stubs.JSValueRef],
+        arg_jvals_ref: _ffi.Pointer[_stubs.JSValueRef],
+        error_jval_ref: _ffi.Pointer[_stubs.JSValueRef],
     ) -> _stubs.JSValueRef:
         arg_jvals = _ffi.unpack(arg_jvals_ref, arg_count)
 
@@ -199,7 +198,7 @@ def wrap_callable(
             # considered fatal/non-recoverable.  "Expected" errors that are to be re-
             # raised in JS should come from a dedicated exception type with a clearly
             # defined way of representing the error as a JSValueRef.
-            _base.logger.exception(
+            _ffi.logger.exception(
                 'Exception in JS->Python callback; surface error from Python to JS'
             )
 
@@ -208,7 +207,7 @@ def wrap_callable(
                 error_message_jval = _stubs.JSValueMakeString(ctx, error_message_jstr)
 
             error_jval_ref[0] = new_error(ctx, [error_message_jval])
-            result = _base.NULL  # TBD
+            result = _ffi.NULL  # TBD
 
         return result
 
@@ -247,3 +246,16 @@ def new_function_from_callable(
     with js_str.scoped(name) as name_jstr:
         jobj = _stubs.JSObjectMakeFunctionWithCallback(ctx, name_jstr, jcallback)
     return jobj, jcallback
+
+
+__all__ = [
+    'FunctionCallable',
+    'get_property',
+    'get_property_names',
+    'new_error',
+    'new_function_from_callable',
+    'new_function_from_script',
+    'set_property',
+    'to_shallow_dict',
+    'wrap_callable',
+]

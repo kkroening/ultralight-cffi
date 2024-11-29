@@ -1,4 +1,5 @@
 from .. import _bindings
+from .. import _ffi
 from .. import _stubs
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -6,6 +7,7 @@ from contextlib import contextmanager
 
 def decode(
     jstr: _stubs.JSStringRef,
+    strict: bool = True,
 ) -> str:
     """Decodes an Ultralight JavaScript string (:class:`JSStringRef`) into an ordinary
     Python string.
@@ -18,6 +20,8 @@ def decode(
 
     Args:
         jstr: The JavaScript string reference to decode.
+        strict: If True, null string pointers raise :class:`ValueError`; otherwise, null
+            JS string pointers become an empty Python string.
 
     Returns:
         The decoded Python Unicode string.
@@ -34,6 +38,9 @@ def decode(
         ...     print(ultra.js_str.decode(jstr))
         Hello!
     """
+    if strict and jstr == _ffi.NULL:
+        raise ValueError('Encountered null pointer while expecting a JavaScript string')
+
     str_ptr = _stubs.JSStringGetCharactersPtr(jstr)
     str_len = _stubs.JSStringGetLength(jstr)
     buffer = _bindings.ffi.buffer(str_ptr, str_len * 2)  # each UTF-16 char is 2 bytes
@@ -77,22 +84,26 @@ def encode(
 
 
 @contextmanager
-def scoped(text: str) -> Generator[_stubs.JSStringRef, None, None]:
-    """Encodes an ordinary Python string into an Ultralight JavaScript string
-    (:class:`JSStringRef`) with automatic resource cleanup.
+def scoped(
+    text: _stubs.JSStringRef | str,
+) -> Generator[_stubs.JSStringRef, None, None]:
+    """Context manager that creates/retains a JS string reference and releases it when
+    the context exits.
 
-    This context manager is equivalent to calling :func:`encode`, followed by
-    :func:`ultralight_cffi.JSStringRelease` when the context exits, preventing memory
-    leaks conveniently and reliably.
+    If the text is an ordinary Python string, it's converted to a JS string via
+    :func:`encode`.  Otherwise is the text is already a JS string, its reference count
+    is increased by calling :func:`JSStringRetain`.  Regardless, a reference is retained
+    in either case for the life of the context, and automatically released when the
+    context exits.
 
     Warning:
-        While inside the context, the `JSStringRef` can be safely used. However,
+        While inside the context, the :class:`JSStringRef` can be safely used. However,
         attempting to access the :class:`JSStringRef` after the context has exited will
         result in undefined (i.e. likely catastrophic) behavior, as the object will have
         been released.
 
     Args:
-        text: The Python string to encode into a :class:`JSStringRef`.
+        text: The JS string to retain, or a Python string to encode into a JS string.
 
     Yields:
         The encoded JavaScript string reference.
@@ -103,8 +114,15 @@ def scoped(text: str) -> Generator[_stubs.JSStringRef, None, None]:
         ...     print(decode(jstr))
         Hello!
     """
-    jstr = encode(text)
+    jstr = encode(text) if isinstance(text, str) else _stubs.JSStringRetain(text)
     try:
         yield jstr
     finally:
         _stubs.JSStringRelease(jstr)
+
+
+__all__ = [
+    'decode',
+    'encode',
+    'scoped',
+]

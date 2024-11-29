@@ -1,11 +1,11 @@
 import pytest
-import ultralight_cffi
+import ultralight_cffi as ultra
 from . import SDK_PATH
 
 
 @pytest.fixture()
 def lib():
-    return ultralight_cffi.load(SDK_PATH / 'bin')
+    return ultra.load(SDK_PATH / 'bin')
 
 
 @pytest.fixture()
@@ -16,3 +16,9 @@ def sdk_init(lib):
     lib.ulEnablePlatformFileSystem(sdk_path_str)
     lib.ulDestroyString(sdk_path_str)
     lib.ulEnablePlatformFontLoader()
+
+
+@pytest.fixture()
+def js_ctx(lib):
+    with ultra.js_ctx.scoped_global() as ctx:
+        yield ctx
