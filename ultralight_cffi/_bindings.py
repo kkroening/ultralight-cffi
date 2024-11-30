@@ -30,6 +30,8 @@ ffi = _cffi_backend.FFI(
         0,
         b'\x00\x03\xD8\x23JSGarbageCollect',
         0,
+        b'\x00\x01\xB3\x23JSGetMemoryUsageStatistics',
+        0,
         b'\x00\x01\x9A\x23JSGlobalContextCopyName',
         0,
         b'\x00\x01\x78\x23JSGlobalContextCreate',

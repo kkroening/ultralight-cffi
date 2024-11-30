@@ -1316,3 +1316,4 @@ void ulOverlayUnfocus(ULOverlay overlay);
 void ulEnablePlatformFontLoader();
 void ulEnablePlatformFileSystem(ULString base_dir);
 void ulEnableDefaultLogger(ULString log_path);
+JSObjectRef JSGetMemoryUsageStatistics(JSContextRef ctx);

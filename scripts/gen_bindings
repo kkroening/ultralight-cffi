@@ -38,6 +38,15 @@ _build_bindings_h() {
   echo '
     #include <AppCore/CAPI.h>
     #include <Ultralight/CAPI.h>
+
+    /*
+     * Extra definition(s) from WebKit `JSBasePrivate.h` which is missing from
+     * the Ultralight API header files:
+     */
+    #ifndef JSBasePrivate_h
+    #define JSBasePrivate_h
+    JS_EXPORT JSObjectRef JSGetMemoryUsageStatistics(JSContextRef ctx);
+    #endif
   ' \
     | _docker_gcc \
       -E \

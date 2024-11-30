@@ -5385,6 +5385,17 @@ def ulEnableDefaultLogger(
     )
 
 
+def JSGetMemoryUsageStatistics(
+    arg0: JSContextRef,
+    /,
+) -> JSObjectRef:
+    return (  # type: ignore[no-any-return]
+        _ffi.get_lib().JSGetMemoryUsageStatistics(  # type: ignore[attr-defined]
+            arg0,
+        )
+    )
+
+
 __all__ = [
     'C_App',
     'C_Bitmap',
@@ -5424,6 +5435,7 @@ __all__ = [
     'JSContextRef',
     'JSEvaluateScript',
     'JSGarbageCollect',
+    'JSGetMemoryUsageStatistics',
     'JSGlobalContextCopyName',
     'JSGlobalContextCreate',
     'JSGlobalContextCreateInGroup',
