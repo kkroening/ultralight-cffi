@@ -1,19 +1,25 @@
+from __future__ import annotations
+
 import math
 from .. import _ffi
 from .. import _stubs
 from . import js_error
 from . import js_str
 from collections.abc import Generator
+from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Self
 from typing import TypeAlias
+from typing import cast
 from typing import overload
 
 PyValue: TypeAlias = str | int | float | bool | None
 """A type alias for primitive Python types that are easily convertable to respective
 JavaScript values.
 """
+
+PyDict: TypeAlias = Mapping[str, PyValue | _stubs.JSValueRef | 'PyDict']
 
 
 @dataclass(frozen=True)
@@ -256,13 +262,38 @@ class JSValue:
             ref = _stubs.JSValueMakeString(ctx, jstr)
         return cls(ref, ctx)
 
+    def to_dict(
+        self,
+        max_depth: int = 5,  # TODO: make optional
+    ) -> PyDict:
+        """Converts a JavaScript object value into a Python dictionary recursively, up
+        to some depth limit.
+
+        The depth is limited to prevent infinite recursion in the case of cyclic object
+        references.
+
+        Todo:
+            Ideally be more intelligent about cyclic references without relying on a depth
+            limit - e.g. by making a mapping of seen objects.
+        """
+        shallow_dict = js_obj.to_shallow_dict(self.ctx, self.ref)
+        return (
+            {
+                k: JSValue(v, self.ctx).to_python(max_depth=max_depth - 1)
+                for k, v in shallow_dict.items()
+            }
+            if max_depth
+            else cast(PyDict, shallow_dict)
+        )
+
     def to_python(
         self,
         *,
         prefer_float: bool = False,
-    ) -> PyValue:
+        max_depth: int = 5,  # TODO: make optional
+    ) -> PyValue | PyDict:
         jtype = _stubs.JSValueGetType(self.ctx, self.ref)
-        pyval: PyValue
+        pyval: PyValue | PyDict
         match jtype:
             case _stubs.kJSTypeUndefined | _stubs.kJSTypeNull:
                 self.to_none()
@@ -273,8 +304,8 @@ class JSValue:
                 pyval = self.to_float() if prefer_float else self.to_int()
             case _stubs.kJSTypeBoolean:
                 pyval = self.to_bool()
-            # case _stubs.kJSTypeObject:  # TODO
-            #     pyval = self.to_obj()
+            case _stubs.kJSTypeObject:
+                pyval = self.to_dict(max_depth=max_depth)
             case _:
                 raise NotImplementedError(f'Unsupported JavaScript type: {jtype}')
         return pyval
@@ -329,6 +360,8 @@ class JSValue:
         with jval.scoped():
             yield jval
 
+
+from . import js_obj  # pylint: disable=cyclic-import,wrong-import-position
 
 __all__ = [
     'JSValue',

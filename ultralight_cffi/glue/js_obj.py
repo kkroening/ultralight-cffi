@@ -3,6 +3,7 @@ from .. import _ffi
 from .. import _stubs
 from . import js_error
 from . import js_str
+from . import js_val
 from collections.abc import Callable
 from typing import TypeAlias
 from typing import cast
@@ -72,7 +73,7 @@ def get_property_names(
 def to_shallow_dict(
     ctx: _stubs.JSContextRef,
     jobj: _stubs.JSObjectRef,
-) -> dict[str, _stubs.JSObjectRef]:
+) -> dict[str, _stubs.JSValueRef]:
     """Converts a JavaScript object into a Python dictionary shallowly - i.e. without
     recursively converting the values from :class:`JSValueRef` to Python values/objects.
     """
