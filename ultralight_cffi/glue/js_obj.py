@@ -3,7 +3,6 @@ from .. import _ffi
 from .. import _stubs
 from . import js_error
 from . import js_str
-from . import js_val
 from collections.abc import Callable
 from typing import TypeAlias
 from typing import cast

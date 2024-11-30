@@ -1,5 +1,6 @@
 import json
 import math
+import mock
 import pytest
 import ultralight_cffi as ultra
 
@@ -102,9 +103,8 @@ class Test_JSValue__from_none__to_none:
         jval = ultra.JSValue.from_str(js_ctx, pyval)
         with pytest.raises(TypeError) as excinfo:
             jval.to_none()
-        assert (
-            str(excinfo.value)
-            == f'Expected JavaScript value to be null or undefined: {json.dumps(pyval)}'
+        assert str(excinfo.value) == (
+            'Expected JavaScript value to be null or undefined: ' + json.dumps(pyval)
         )
 
 
@@ -473,19 +473,21 @@ class Test_JSValue__from_dict__to_dict:
 
     @pytest.mark.parametrize('with_null_pointer', [False, True])
     def test__null(self, js_ctx, with_null_pointer):
+        # Note: Most cases of unexpected JS value type in `to_dict` trigger an exception
+        # even with `strict=False`.
         jval = (
             ultra.JSValue(ultra.NULL, js_ctx)
             if with_null_pointer
             else ultra.JSValue.from_none(js_ctx)
         )
         with pytest.raises(TypeError) as excinfo:
-            jval.to_dict()
+            jval.to_dict(strict=False)
         assert str(excinfo.value) == 'Expected JavaScript value to be an object: null'
 
     def test__undefined(self, js_ctx):
         jval = ultra.JSValue.from_none(js_ctx, undefined=True)
         with pytest.raises(TypeError) as excinfo:
-            jval.to_dict()
+            jval.to_dict(strict=False)
         assert (
             str(excinfo.value) == 'Expected JavaScript value to be an object: undefined'
         )
@@ -494,14 +496,14 @@ class Test_JSValue__from_dict__to_dict:
         pyval = True
         jval = ultra.JSValue.from_bool(js_ctx, pyval)
         with pytest.raises(TypeError) as excinfo:
-            jval.to_dict()
+            jval.to_dict(strict=False)
         assert str(excinfo.value) == 'Expected JavaScript value to be an object: true'
 
     def test__float(self, faker, js_ctx):
         pyval = faker.pyfloat(3, 3)
         jval = ultra.JSValue.from_float(js_ctx, pyval)
         with pytest.raises(TypeError) as excinfo:
-            jval.to_dict()
+            jval.to_dict(strict=False)
         assert (
             str(excinfo.value) == f'Expected JavaScript value to be an object: {pyval}'
         )
@@ -510,7 +512,7 @@ class Test_JSValue__from_dict__to_dict:
         pyval = faker.pyint()
         jval = ultra.JSValue.from_int(js_ctx, pyval)
         with pytest.raises(TypeError) as excinfo:
-            jval.to_dict()
+            jval.to_dict(strict=False)
         assert (
             str(excinfo.value) == f'Expected JavaScript value to be an object: {pyval}'
         )
@@ -519,10 +521,109 @@ class Test_JSValue__from_dict__to_dict:
         pyval = faker.sentence()
         jval = ultra.JSValue.from_str(js_ctx, pyval)
         with pytest.raises(TypeError) as excinfo:
-            jval.to_dict()
+            jval.to_dict(strict=False)
         assert (
             str(excinfo.value)
             == f'Expected JavaScript value to be an object: "{pyval}"'
+        )
+
+    def test__list(self, faker, js_ctx):
+        pyval = [faker.md5(), ['nested value']]
+        jval = ultra.JSValue.from_list(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            jval.to_dict()
+        assert str(excinfo.value) == (
+            'Expected JavaScript value to be a non-array object: '
+            + json.dumps(pyval, separators=(',', ':'))
+        )
+
+        actual = jval.to_dict(strict=False)
+        assert actual == {'0': pyval[0], '1': pyval[1]}
+
+
+class Test_JSValue__from_list__to_list:
+    def test__list(self, faker, js_ctx):
+        pylist1 = ['sample1', faker.pybool()] + [i for i in range(10)]
+        jval1 = ultra.JSValue.from_list(js_ctx, pylist1)
+        actual = jval1.to_list()
+        assert actual == pylist1
+
+        pylist2 = ['sample2', pylist1, {'nested_dict_key': 'nested value'}]
+        jval2 = ultra.JSValue.from_list(js_ctx, pylist2)
+        actual = jval2.to_list()
+        assert actual == pylist2
+
+    @pytest.mark.parametrize('with_null_pointer', [False, True])
+    def test__null(self, js_ctx, with_null_pointer):
+        jval = (
+            ultra.JSValue(ultra.NULL, js_ctx)
+            if with_null_pointer
+            else ultra.JSValue.from_none(js_ctx)
+        )
+        with pytest.raises(TypeError) as excinfo:
+            jval.to_list()
+        assert (
+            str(excinfo.value)
+            == 'Expected JavaScript value to be an array object: null'
+        )
+
+    def test__undefined(self, js_ctx):
+        jval = ultra.JSValue.from_none(js_ctx, undefined=True)
+        with pytest.raises(TypeError) as excinfo:
+            jval.to_list()
+        assert (
+            str(excinfo.value)
+            == 'Expected JavaScript value to be an array object: undefined'
+        )
+
+    def test__bool(self, js_ctx):
+        pyval = True
+        jval = ultra.JSValue.from_bool(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            jval.to_list()
+        assert (
+            str(excinfo.value)
+            == 'Expected JavaScript value to be an array object: true'
+        )
+
+    def test__float(self, faker, js_ctx):
+        pyval = faker.pyfloat(3, 3)
+        jval = ultra.JSValue.from_float(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            jval.to_list()
+        assert (
+            str(excinfo.value)
+            == f'Expected JavaScript value to be an array object: {pyval}'
+        )
+
+    def test__int(self, faker, js_ctx):
+        pyval = faker.pyint()
+        jval = ultra.JSValue.from_int(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            jval.to_list()
+        assert (
+            str(excinfo.value)
+            == f'Expected JavaScript value to be an array object: {pyval}'
+        )
+
+    def test__str(self, faker, js_ctx):
+        pyval = faker.sentence()
+        jval = ultra.JSValue.from_str(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            jval.to_list()
+        assert (
+            str(excinfo.value)
+            == f'Expected JavaScript value to be an array object: "{pyval}"'
+        )
+
+    def test__dict(self, faker, js_ctx):
+        pyval = {'key1': 'value1'}
+        jval = ultra.JSValue.from_dict(js_ctx, pyval)
+        with pytest.raises(TypeError) as excinfo:
+            jval.to_list()
+        assert str(excinfo.value) == (
+            'Expected JavaScript value to be an array object: '
+            + json.dumps(pyval, separators=(',', ':'))
         )
 
 
@@ -562,10 +663,17 @@ class Test_JSValue__from_python__to_python:
 
 def test_JSValue__scoped(faker, js_ctx):
     def get_protected_count():
-        stats = ultra.JSValue(
-            ultra.JSGetMemoryUsageStatistics(js_ctx), js_ctx
-        ).to_python()
-        return stats['protectedObjectCount']
+        # Note: `JSGetMemoryUsageStatistics` is an optional extra JavaScriptCore export
+        # and not strictly necessary to include, but if available, it helps with
+        # internal testing at the very least.
+        if hasattr(ultra, 'JSGetMemoryUsageStatistics'):
+            stats = ultra.JSValue(
+                ultra.JSGetMemoryUsageStatistics(js_ctx), js_ctx
+            ).to_python()
+            count = stats['protectedObjectCount']
+        else:
+            count = mock.ANY
+        return count
 
     orig_protected_count = get_protected_count()
 
