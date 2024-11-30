@@ -264,6 +264,7 @@ class JSValue:
 
     def to_dict(
         self,
+        *,
         max_depth: int = 5,  # TODO: make optional
     ) -> PyDict:
         """Converts a JavaScript object value into a Python dictionary recursively, up
@@ -273,9 +274,14 @@ class JSValue:
         references.
 
         Todo:
-            Ideally be more intelligent about cyclic references without relying on a depth
-            limit - e.g. by making a mapping of seen objects.
+            Ideally be more intelligent about cyclic references without relying on a
+            depth limit - e.g. by making a mapping of seen objects.
         """
+        if not _stubs.JSValueIsObject(self.ctx, self.ref):
+            raise TypeError(
+                'Expected JavaScript value to be an object: '
+                + self.to_json_str('undefined')
+            )
         shallow_dict = js_obj.to_shallow_dict(self.ctx, self.ref)
         return (
             {
@@ -285,6 +291,19 @@ class JSValue:
             if max_depth
             else cast(PyDict, shallow_dict)
         )
+
+    @classmethod
+    def from_dict(
+        cls,
+        ctx: _stubs.JSContextRef,
+        pydict: PyDict,
+        # jcls: _stubs.JSClassRef | None = None,
+    ) -> Self:
+        jobj_ref = _stubs.JSObjectMake(ctx, _ffi.NULL, _ffi.NULL)
+        for key, pyval in pydict.items():
+            with cls.scoped_from(ctx, pyval) as jval:
+                js_obj.set_property(ctx, jobj_ref, key, jval.ref)
+        return cls(jobj_ref, ctx)
 
     def to_python(
         self,
@@ -314,7 +333,7 @@ class JSValue:
     def from_python(
         cls,
         ctx: _stubs.JSContextRef,
-        pyval: PyValue,
+        pyval: PyValue | PyDict,
         *,
         prefer_undefined: bool = False,
     ) -> Self:
@@ -329,6 +348,8 @@ class JSValue:
             jval = cls.from_int(ctx, pyval)
         elif isinstance(pyval, str):
             jval = cls.from_str(ctx, pyval)
+        elif isinstance(pyval, dict):
+            jval = cls.from_dict(ctx, pyval)
         else:
             raise NotImplementedError(
                 f'Unable to convert Python object into JavaScript: {pyval}'
@@ -349,14 +370,18 @@ class JSValue:
     def scoped_from(
         cls,
         ctx: _stubs.JSContextRef,
-        val: _stubs.JSValueRef | PyValue,  # TBD: accept both JS values and Py values?
+        val: _stubs.JSValueRef | PyValue | PyDict,
     ) -> Generator[Self, None, None]:
         """Context manager that wraps a value as a temporarily protected JavaScript
         value reference, automatically unprotecting the JS value when the context exits.
 
         If the value is not already a JS value, then it's wrapped automatically.
         """
-        jval = cls.from_python(ctx, val) if isinstance(val, PyValue) else cls(val, ctx)
+        jval = (
+            cls.from_python(ctx, val)
+            if isinstance(val, (PyValue, Mapping))
+            else cls(val, ctx)
+        )
         with jval.scoped():
             yield jval
 
