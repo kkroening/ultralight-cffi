@@ -476,60 +476,19 @@ class Test_JSValue__from_python__to_python:
         assert jval.to_python() == pyval
 
 
-def _get_stats(js_ctx):
-    return ultra.JSValue(ultra.JSGetMemoryUsageStatistics(js_ctx), js_ctx).to_python()
-
-
-def _diff_stats(stats_before, stats_after):
-    return {
-        k1: (
-            stats_after[k1] - stats_before[k1]
-            if isinstance(stats_after[k1], int)
-            else {
-                k2: stats_after[k1][k2] - stats_before[k1][k2]
-                for k2 in stats_after[k1].keys()
-                if stats_after[k1][k2] - stats_before[k1][k2]
-            }
-        )
-        for k1 in stats_after.keys()
-        if (not isinstance(stats_after[k1], int) or stats_after[k1] - stats_before[k1])
-    }
-
-
-# @contextmanager
-# def stats_diffing(js_ctx: ultra.JSContextRef):
-#
-#     stats_before = _get_stats()
-#     stats_list = [stats_before, None, None]
-#     try:
-#         yield stats_list
-#     finally:
-#         stats_after = _get_stats()
-#         stats_list[1] = stats_after
-#         stats_list[2] = _diff_stats(stats_after, stats_before)
-
-
-@pytest.mark.only
 def test_JSValue__scoped(faker, js_ctx):
     def get_protected_count():
-        return _get_stats(js_ctx)['protectedObjectCount']
+        stats = ultra.JSValue(
+            ultra.JSGetMemoryUsageStatistics(js_ctx), js_ctx
+        ).to_python()
+        return stats['protectedObjectCount']
 
     orig_protected_count = get_protected_count()
 
     pyval1 = faker.sentence()
     pyval2 = faker.sentence()
 
-    # stats_before = _get_stats(js_ctx)
     with ultra.JSValue.scoped_from(js_ctx, pyval1) as jval1:
-        # stats_after = _get_stats(js_ctx)
-        # assert _diff_stats(stats_before, stats_after) == {
-        #     'objectTypeCounts': {
-        #         'Object': 2,  # Heisenberg - 2 more objects for stats
-        #         'string': 1,
-        #     },
-        #     'protectedObjectCount': 1,
-        # }
-
         assert jval1.to_python() == pyval1
         assert get_protected_count() == orig_protected_count + 1
 
@@ -547,9 +506,3 @@ def test_JSValue__scoped(faker, js_ctx):
 
     # Expectation - protection evaporates when context has exited:
     assert get_protected_count() == orig_protected_count
-
-    # # Note: technically the value will still exist after the scope - just not protected
-    # # from GC.  Accessing the value after GC results in undefined behavior.
-    # ultra.JSGarbageCollect(js_ctx)
-    # stats_after = _get_stats(js_ctx)
-    # assert _diff_stats(stats_before, stats_after) == {'objectTypeCounts': {'Object': 2}}
