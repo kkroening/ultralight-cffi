@@ -7,9 +7,11 @@ from . import ul_error
 from . import ul_str
 from ._base_error import UltralightError
 from .js_error import UltralightJSError
+from .js_val import JSValue
 from .ul_error import UltralightULError
 
 __all__ = [
+    'JSValue',
     'js_ctx',
     'js_error',
     'js_obj',

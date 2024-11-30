@@ -10,6 +10,7 @@ from ._ffi import logger
 from ._ffi import new
 from ._ffi import unpack
 from ._surface import CustomSurface
+from .glue import JSValue
 
 # Note: wildcard imports generally suck, but since `_stubs.py` is auto-generated, this
 # errs on the side of avoiding excessively redundant boilerplate.  The glue-layer
@@ -24,6 +25,7 @@ __all__ = [
     'CustomSurface',
     'ffi',
     'glue',
+    'JSValue',
     'Lib',
     'load',
     'logger',

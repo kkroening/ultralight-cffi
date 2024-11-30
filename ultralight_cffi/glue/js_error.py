@@ -17,14 +17,12 @@ def scoped(
     yield error_jval_ref
     error_jval = error_jval_ref[0]  # pylint: disable=unsubscriptable-object
     if error_jval:
-        error_str = js_val.to_json_str(ctx, error_jval)  # potentially recursive
+        error_str = error_jval.to_json_str()  # potentially recursive
         if error_str != '{}':
             # TODO: should probably include the JSValueRef, but need to be careful about
             # garbage collection.
             raise UltralightJSError(error_str)
 
-
-from . import js_val  # pylint: disable=cyclic-import,wrong-import-position
 
 __all__ = [
     'scoped',
