@@ -5,7 +5,7 @@ def test_JSObject__set_property__get_property(js_ctx):
     prop_name = 'sample_prop'
     expected_pyval = 'sample value'
 
-    jobj_ref = ultra.JSContextGetGlobalObject(js_ctx)
+    jobj_ref = ultra.JSContextGetGlobalObject(js_ctx.ref)
     jobj = ultra.JSObject(jobj_ref, js_ctx)
 
     jval = ultra.JSValue.new(js_ctx, expected_pyval)

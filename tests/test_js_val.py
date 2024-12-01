@@ -18,15 +18,15 @@ class Test_JSValue__to_json_str:
             if with_null_pointer
             else ultra.JSValue._new_from_none(js_ctx)
         )
-        assert ultra.JSValueIsNull(js_ctx, jval.ref) is True
-        assert ultra.JSValueIsUndefined(js_ctx, jval.ref) is False
+        assert ultra.JSValueIsNull(js_ctx.ref, jval.ref) is True
+        assert ultra.JSValueIsUndefined(js_ctx.ref, jval.ref) is False
         actual = jval.to_json_str()
         assert actual == 'null'
 
     def test__undefined(self, js_ctx):
         jval = ultra.JSValue._new_from_none(js_ctx, undefined=True)
-        assert ultra.JSValueIsNull(js_ctx, jval.ref) is False
-        assert ultra.JSValueIsUndefined(js_ctx, jval.ref) is True
+        assert ultra.JSValueIsNull(js_ctx.ref, jval.ref) is False
+        assert ultra.JSValueIsUndefined(js_ctx.ref, jval.ref) is True
         actual = jval.to_json_str()
         assert actual is None
 
@@ -46,7 +46,7 @@ class Test_JSValue__to_json_str:
         # contrast to Python's `json.dumps(float('nan'))` which gives `"NaN"`.
         pyval = float('nan')
         jval = ultra.JSValue._new_from_float(js_ctx, pyval)
-        assert ultra.JSValueIsNumber(js_ctx, jval.ref) is True
+        assert ultra.JSValueIsNumber(js_ctx.ref, jval.ref) is True
         actual = jval.to_json_str()
         assert actual == 'null'
 
@@ -141,7 +141,7 @@ class Test_JSValue__new_from_bool__to_bool:
 
     def test__undefined(self, js_ctx):
         jval = ultra.JSValue._new_from_none(js_ctx, undefined=True)
-        assert ultra.JSValueIsUndefined(js_ctx, jval.ref) is True
+        assert ultra.JSValueIsUndefined(js_ctx.ref, jval.ref) is True
         with pytest.raises(TypeError) as excinfo:
             jval.to_bool()
         assert (
@@ -717,9 +717,8 @@ def test_JSValue__enter__exit(faker, js_ctx):
         # and not strictly necessary to include, but if available, it helps with
         # internal testing at the very least.
         if hasattr(ultra, 'JSGetMemoryUsageStatistics'):
-            stats = ultra.JSValue(
-                ultra.JSGetMemoryUsageStatistics(js_ctx), js_ctx
-            ).to_python()
+            stats_obj_ref = ultra.JSGetMemoryUsageStatistics(js_ctx.ref)
+            stats = ultra.JSObject(stats_obj_ref, js_ctx).to_python()
             count = stats['protectedObjectCount']
         else:
             count = mock.ANY

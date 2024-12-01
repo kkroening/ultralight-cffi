@@ -10,9 +10,7 @@ class UltralightJSError(_base_error.UltralightError):
 
 
 @contextmanager
-def scoped(
-    ctx: _stubs.JSContextRef,
-) -> Generator[_ffi.Pointer[_stubs.JSValueRef], None, None]:
+def scoped() -> Generator[_ffi.Pointer[_stubs.JSValueRef], None, None]:
     error_jval_ref = _ffi.new('JSValueRef *')
     yield error_jval_ref
     error_jval = error_jval_ref[0]  # pylint: disable=unsubscriptable-object

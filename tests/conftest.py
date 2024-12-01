@@ -20,5 +20,5 @@ def sdk_init(lib):
 
 @pytest.fixture()
 def js_ctx(lib):
-    with ultra.js_ctx.scoped_global() as ctx:
+    with ultra.JSGlobalContext.new() as ctx:
         yield ctx

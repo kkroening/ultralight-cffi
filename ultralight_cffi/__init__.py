@@ -10,13 +10,14 @@ from ._ffi import logger
 from ._ffi import new
 from ._ffi import unpack
 from ._surface import CustomSurface
+from .glue import JSContext
 from .glue import JSFunction
+from .glue import JSGlobalContext
 from .glue import JSObject
 from .glue import JSValue
 from .glue import UltralightError
 from .glue import UltralightJSError
 from .glue import UltralightULError
-from .glue import js_ctx
 from .glue import js_error
 from .glue import js_str
 from .glue import ul_error
@@ -34,10 +35,11 @@ __all__ = _stubs.__all__ + [
     'CustomSurface',
     'ffi',
     'glue',
+    'JSContext',
     'JSFunction',
+    'JSGlobalContext',
     'JSObject',
     'JSValue',
-    'js_ctx',
     'js_error',
     'js_str',
     'Lib',

@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from .. import _ffi
 from .. import _stubs
+from . import _js_ctx
 from . import js_error
 from . import js_str
 from collections.abc import Mapping
@@ -47,7 +48,7 @@ else:
 @dataclass(frozen=True)
 class JSValue:
     ref: _stubs.JSValueRef
-    ctx: _stubs.JSContextRef
+    ctx: _js_ctx.JSContext
 
     @overload
     def to_json_str(
@@ -87,9 +88,9 @@ class JSValue:
             :func:`to_json_str` is used for inspection, debugging, error messages, etc.
             - but note that doing so makes the output non-JSON-compliant.
         """
-        with js_error.scoped(self.ctx) as error_jval_ptr:  # potentially recursive
+        with js_error.scoped() as error_jval_ptr:  # potentially recursive
             jstr = _stubs.JSValueCreateJSONString(
-                self.ctx,
+                self.ctx.ref,
                 self.ref,
                 indent,
                 error_jval_ptr,
@@ -110,8 +111,8 @@ class JSValue:
         raises :class:`TypeError`.
         """
         if not _stubs.JSValueIsNull(
-            self.ctx, self.ref
-        ) and not _stubs.JSValueIsUndefined(self.ctx, self.ref):
+            self.ctx.ref, self.ref
+        ) and not _stubs.JSValueIsUndefined(self.ctx.ref, self.ref):
             raise TypeError(
                 'Expected JavaScript value to be null or undefined: '
                 f'{self.to_json_str("undefined")}'
@@ -120,7 +121,7 @@ class JSValue:
     @classmethod
     def _new_from_none(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         *,
         undefined: bool = False,
     ) -> Self:
@@ -130,9 +131,9 @@ class JSValue:
             The caller is responsible for protecting against garbage collection.
         """
         ref = (
-            _stubs.JSValueMakeUndefined(ctx)
+            _stubs.JSValueMakeUndefined(ctx.ref)
             if undefined
-            else _stubs.JSValueMakeNull(ctx)
+            else _stubs.JSValueMakeNull(ctx.ref)
         )
         return cls(ref, ctx)
 
@@ -153,23 +154,23 @@ class JSValue:
             programming language level, but they're different kinds of values at the
             runtime level.  Maybe ``strict=True`` should just not be a thing.
         """
-        if not strict and _stubs.JSValueIsUndefined(self.ctx, self.ref):
+        if not strict and _stubs.JSValueIsUndefined(self.ctx.ref, self.ref):
             # JSValueToBoolean crashes with undefined values for some reason, despite
             # coercing other types based on truthiness.
             pyval = False
-        elif strict and not _stubs.JSValueIsBoolean(self.ctx, self.ref):
+        elif strict and not _stubs.JSValueIsBoolean(self.ctx.ref, self.ref):
             raise TypeError(
                 'Expected JavaScript value to be a boolean: '
                 + self.to_json_str('undefined')
             )
         else:
-            pyval = _stubs.JSValueToBoolean(self.ctx, self.ref)
+            pyval = _stubs.JSValueToBoolean(self.ctx.ref, self.ref)
         return pyval
 
     @classmethod
     def _new_from_bool(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         value: bool,
     ) -> Self:
         """Creates a JavaScript boolean value from a Python :class:`bool`.
@@ -177,7 +178,7 @@ class JSValue:
         Warning:
             The caller is responsible for protecting against garbage collection.
         """
-        ref = _stubs.JSValueMakeBoolean(ctx, value)
+        ref = _stubs.JSValueMakeBoolean(ctx.ref, value)
         return cls(ref, ctx)
 
     def to_float(
@@ -186,19 +187,19 @@ class JSValue:
         strict: bool = True,
     ) -> float:
         """Converts a JavaScript number value into a Python :class:`float`."""
-        if strict and not _stubs.JSValueIsNumber(self.ctx, self.ref):
+        if strict and not _stubs.JSValueIsNumber(self.ctx.ref, self.ref):
             raise TypeError(
                 'Expected JavaScript value to be a number: '
                 + self.to_json_str('undefined')
             )
-        with js_error.scoped(self.ctx) as error_jval_ptr:
-            pyval = _stubs.JSValueToNumber(self.ctx, self.ref, error_jval_ptr)
+        with js_error.scoped() as error_jval_ptr:
+            pyval = _stubs.JSValueToNumber(self.ctx.ref, self.ref, error_jval_ptr)
         return pyval
 
     @classmethod
     def _new_from_float(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         value: float,
     ) -> Self:
         """Creates a JavaScript number value from a Python :class:`float`.
@@ -206,7 +207,7 @@ class JSValue:
         Warning:
             The caller is responsible for protecting against garbage collection.
         """
-        ref = _stubs.JSValueMakeNumber(ctx, value)
+        ref = _stubs.JSValueMakeNumber(ctx.ref, value)
         return cls(ref, ctx)
 
     def to_int(
@@ -236,7 +237,7 @@ class JSValue:
     @classmethod
     def _new_from_int(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         value: int,
     ) -> Self:
         """Creates a JavaScript number value from a Python :class:`int`.
@@ -244,7 +245,7 @@ class JSValue:
         Warning:
             The caller is responsible for protecting against garbage collection.
         """
-        ref = _stubs.JSValueMakeNumber(ctx, float(value))
+        ref = _stubs.JSValueMakeNumber(ctx.ref, float(value))
         return cls(ref, ctx)
 
     def to_str(
@@ -254,14 +255,14 @@ class JSValue:
     ) -> str:
         """Converts a JavaScript string value into a Python :class:`str`."""
 
-        if strict and not _stubs.JSValueIsString(self.ctx, self.ref):
+        if strict and not _stubs.JSValueIsString(self.ctx.ref, self.ref):
             raise TypeError(
                 'Expected JavaScript value to be a string: '
                 + self.to_json_str('undefined')
             )
 
-        with js_error.scoped(self.ctx) as error_jval_ptr:
-            jstr = _stubs.JSValueToStringCopy(self.ctx, self.ref, error_jval_ptr)
+        with js_error.scoped() as error_jval_ptr:
+            jstr = _stubs.JSValueToStringCopy(self.ctx.ref, self.ref, error_jval_ptr)
         try:
             pyval = js_str.decode(jstr)
         finally:
@@ -272,7 +273,7 @@ class JSValue:
     @classmethod
     def _new_from_str(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         pystr: str,
     ) -> Self:
         """Creates a JavaScript value from a Python string.
@@ -281,7 +282,7 @@ class JSValue:
             The caller is responsible for protecting against garbage collection.
         """
         with js_str.scoped(pystr) as jstr:
-            ref = _stubs.JSValueMakeString(ctx, jstr)
+            ref = _stubs.JSValueMakeString(ctx.ref, jstr)
         return cls(ref, ctx)
 
     def to_dict(
@@ -302,12 +303,12 @@ class JSValue:
             depth limit - e.g. by making a mapping of seen objects.
         """
 
-        if not _stubs.JSValueIsObject(self.ctx, self.ref):
+        if not _stubs.JSValueIsObject(self.ctx.ref, self.ref):
             raise TypeError(
                 'Expected JavaScript value to be an object: '
                 + self.to_json_str('undefined')
             )
-        if strict and _stubs.JSValueIsArray(self.ctx, self.ref):
+        if strict and _stubs.JSValueIsArray(self.ctx.ref, self.ref):
             # Array objects can technically be converted to a Python dict, but it's
             # likely not intentional, unless explicitly requested via `strict=False`.
             raise TypeError(
@@ -336,7 +337,7 @@ class JSValue:
     @classmethod
     def _new_from_dict(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         pydict: PyDict,
         # jcls: _stubs.JSClassRef | None = None,
         *,
@@ -351,14 +352,11 @@ class JSValue:
         max_depth: int = 5,  # TODO: make optional
     ) -> PyList:
         """Converts a JavaScript object value into a Python list (recursively)."""
-        if not _stubs.JSValueIsArray(self.ctx, self.ref):
+        if not _stubs.JSValueIsArray(self.ctx.ref, self.ref):
             raise TypeError(
                 'Expected JavaScript value to be an array object: '
                 + self.to_json_str('undefined')
             )
-
-        # length_jval_ref = _js_obj.get_property(self.ctx, self.ref, 'length')
-        # length = JSValue(length_jval_ref, self.ctx).to_int()
 
         pylist: list[PyValue] = []
         jarray = _js_obj.JSObject(self.ref, self.ctx)  # TODO: JSArray instead?
@@ -389,7 +387,7 @@ class JSValue:
     @classmethod
     def _new_from_list(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         pylist: PyList,
         *,
         prefer_undefined: bool = False,
@@ -399,9 +397,9 @@ class JSValue:
         ]
         jvals_ptr = _ffi.new('JSValueRef[]', jval_refs)
 
-        with js_error.scoped(ctx) as error_jval_ptr:
+        with js_error.scoped() as error_jval_ptr:
             jarray = _stubs.JSObjectMakeArray(
-                ctx, len(jval_refs), jvals_ptr, error_jval_ptr
+                ctx.ref, len(jval_refs), jvals_ptr, error_jval_ptr
             )
         return cls(jarray, ctx)
 
@@ -411,7 +409,7 @@ class JSValue:
         max_depth: int = 5,  # TODO: make optional
         prefer_float: bool = True,
     ) -> PyValue:
-        jtype = _stubs.JSValueGetType(self.ctx, self.ref)
+        jtype = _stubs.JSValueGetType(self.ctx.ref, self.ref)
         pyval: PyValue
         match jtype:
             case _stubs.kJSTypeUndefined | _stubs.kJSTypeNull:
@@ -424,7 +422,7 @@ class JSValue:
             case _stubs.kJSTypeBoolean:
                 pyval = self.to_bool()
             case _stubs.kJSTypeObject:
-                if _stubs.JSValueIsArray(self.ctx, self.ref):
+                if _stubs.JSValueIsArray(self.ctx.ref, self.ref):
                     pyval = self.to_list(
                         max_depth=max_depth,
                         prefer_float=prefer_float,
@@ -443,7 +441,7 @@ class JSValue:
     @classmethod
     def _new_from_python(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         pyval: PyValue,
         *,
         prefer_undefined: bool = False,
@@ -474,7 +472,7 @@ class JSValue:
     @classmethod
     def new(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         val: _stubs.JSValueRef | PyValue,
         *,
         prefer_undefined: bool = False,
@@ -489,7 +487,7 @@ class JSValue:
         )
 
     def __enter__(self) -> Self:
-        _stubs.JSValueProtect(self.ctx, self.ref)
+        _stubs.JSValueProtect(self.ctx.ref, self.ref)
         return self
 
     def __exit__(
@@ -498,7 +496,7 @@ class JSValue:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        _stubs.JSValueUnprotect(self.ctx, self.ref)
+        _stubs.JSValueUnprotect(self.ctx.ref, self.ref)
 
 
 from . import _js_obj  # pylint: disable=cyclic-import,wrong-import-position

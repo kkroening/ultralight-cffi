@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .. import _ffi
 from .. import _stubs
+from . import _js_ctx
 from . import _js_val
 from . import js_error
 from . import js_str
@@ -13,10 +14,10 @@ from typing import cast
 @dataclass(frozen=True)
 class JSObject(_js_val.JSValue):
     ref: _stubs.JSObjectRef
-    ctx: _stubs.JSContextRef
+    ctx: _js_ctx.JSContext
 
     def __post_init__(self) -> None:
-        assert _stubs.JSValueIsObject(self.ctx, self.ref)
+        assert _stubs.JSValueIsObject(self.ctx.ref, self.ref)
 
     def get_property(
         self,
@@ -24,9 +25,9 @@ class JSObject(_js_val.JSValue):
     ) -> _js_val.JSValue:
         """Retrieves a property value from an Ultralight JavaScript object."""
         with js_str.scoped(prop_name) as prop_name_jstr:
-            with js_error.scoped(self.ctx) as error_jval_ref:
+            with js_error.scoped() as error_jval_ref:
                 prop_jval_ref = _stubs.JSObjectGetProperty(
-                    self.ctx, self.ref, prop_name_jstr, error_jval_ref
+                    self.ctx.ref, self.ref, prop_name_jstr, error_jval_ref
                 )
         return _js_val.JSValue(prop_jval_ref, self.ctx)
 
@@ -36,11 +37,11 @@ class JSObject(_js_val.JSValue):
         value: _js_val.JSValue,
     ) -> None:
         """Sets a property on an Ultralight JavaScript object."""
-        assert value.ctx == self.ctx
+        assert value.ctx.ref == self.ctx.ref
         with js_str.scoped(prop_name) as prop_name_jstr:
-            with js_error.scoped(self.ctx) as error_jval_ref:
+            with js_error.scoped() as error_jval_ref:
                 _stubs.JSObjectSetProperty(
-                    self.ctx,
+                    self.ctx.ref,
                     self.ref,
                     prop_name_jstr,
                     value.ref,
@@ -50,7 +51,7 @@ class JSObject(_js_val.JSValue):
 
     def get_property_names(self) -> list[str]:
         """Retrieves the names of all properties on a JavaScript object."""
-        names_array = _stubs.JSObjectCopyPropertyNames(self.ctx, self.ref)
+        names_array = _stubs.JSObjectCopyPropertyNames(self.ctx.ref, self.ref)
         try:
             name_count = _stubs.JSPropertyNameArrayGetCount(names_array)
             name_jstrs = [
@@ -72,7 +73,7 @@ class JSObject(_js_val.JSValue):
     @classmethod
     def new(  # pylint: disable=dangerous-default-value
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         val: _stubs.JSValueRef | _js_val.PyValue = {},
         *,
         prefer_undefined: bool = False,  # TBD
@@ -84,18 +85,18 @@ class JSObject(_js_val.JSValue):
         #     jobj = cls(val, ctx)
 
         if isinstance(val, _js_val.JSValue):
-            if val.ctx != ctx:
+            if val.ctx.ref != ctx.ref:
                 raise RuntimeError(
                     'Value belongs to a different JavaScriptCore context'
                 )
-            if not _stubs.JSValueIsObject(ctx, val.ref):
+            if not _stubs.JSValueIsObject(ctx.ref, val.ref):
                 raise TypeError(
                     'Expected JavaScript value to be an object: '
                     + val.to_json_str('undefined')
                 )
 
         elif isinstance(val, _js_val.PyDictAny):
-            jobj_ref = _stubs.JSObjectMake(ctx, _ffi.NULL, _ffi.NULL)
+            jobj_ref = _stubs.JSObjectMake(ctx.ref, _ffi.NULL, _ffi.NULL)
             jobj = cls(jobj_ref, ctx)
             for key, pyval in val.items():
                 with _js_val.JSValue.new(
@@ -114,7 +115,7 @@ class JSObject(_js_val.JSValue):
     @classmethod
     def _new_from_none(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         *,
         undefined: bool = False,
     ) -> Self:
@@ -123,7 +124,7 @@ class JSObject(_js_val.JSValue):
     @classmethod
     def _new_from_bool(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         value: bool,
     ) -> Self:
         raise NotImplementedError()
@@ -131,7 +132,7 @@ class JSObject(_js_val.JSValue):
     @classmethod
     def _new_from_float(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         value: float,
     ) -> Self:
         raise NotImplementedError()
@@ -139,7 +140,7 @@ class JSObject(_js_val.JSValue):
     @classmethod
     def _new_from_int(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         value: int,
     ) -> Self:
         raise NotImplementedError()
@@ -147,7 +148,7 @@ class JSObject(_js_val.JSValue):
     @classmethod
     def _new_from_str(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         pystr: str,
     ) -> Self:
         raise NotImplementedError()
@@ -155,7 +156,7 @@ class JSObject(_js_val.JSValue):
     @classmethod
     def _new_from_list(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         pylist: _js_val.PyList,
         *,
         prefer_undefined: bool = False,
@@ -164,7 +165,7 @@ class JSObject(_js_val.JSValue):
 
 
 def new_error(
-    ctx: _stubs.JSContextRef,
+    ctx: _js_ctx.JSContext,
     arg_jvals: list[_stubs.JSValueRef],
 ) -> _stubs.JSObjectRef:
     """Creates a new JavaScript Error object.
@@ -182,9 +183,9 @@ def new_error(
         _ffi.Pointer[_stubs.JSValueRef], _ffi.new('JSValueRef[]', arg_jvals)
     )
 
-    with js_error.scoped(ctx) as nested_error_jobj_ref:
+    with js_error.scoped() as nested_error_jobj_ref:
         error_jobj = _stubs.JSObjectMakeError(
-            ctx,
+            ctx.ref,
             len(arg_jvals),
             arg_jvals_ref,
             nested_error_jobj_ref,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 from .. import _ffi
 from .. import _stubs
+from . import _js_ctx
 from . import _js_obj
 from . import js_error
 from . import js_str
@@ -12,7 +13,7 @@ from typing import TypeAlias
 
 FunctionCallable: TypeAlias = Callable[
     [
-        _stubs.JSContextRef,  # ctx
+        _js_ctx.JSContext,  # ctx
         _stubs.JSObjectRef,  # function
         _stubs.JSObjectRef,  # thisObject
         list[_stubs.JSValueRef],  # arguments
@@ -25,7 +26,7 @@ class JSFunction(_js_obj.JSObject):  # pylint: disable=abstract-method
     @classmethod
     def new_from_script(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         name: str,
         param_names: list[str],
         script_body: str,
@@ -48,9 +49,9 @@ class JSFunction(_js_obj.JSObject):  # pylint: disable=abstract-method
             body_jstr = exit_stack.enter_context(js_str.scoped(script_body))
             source_url_jstr = exit_stack.enter_context(js_str.scoped(source_url))
 
-            with js_error.scoped(ctx) as error_jval_ref:
+            with js_error.scoped() as error_jval_ref:
                 jobj_ref = _stubs.JSObjectMakeFunction(
-                    ctx,
+                    ctx.ref,
                     name_jstr,
                     len(param_names),
                     param_names_jstrs,
@@ -97,16 +98,16 @@ class JSFunction(_js_obj.JSObject):  # pylint: disable=abstract-method
 
         @_ffi.callback('JSObjectCallAsFunctionCallback')
         def wrapper(
-            ctx: _stubs.JSContextRef,
+            ctx_ref: _stubs.JSContextRef,
             function_jobj: _stubs.JSObjectRef,
             this_jobj: _stubs.JSObjectRef,
             arg_count: int,
             arg_jvals_ref: _ffi.Pointer[_stubs.JSValueRef],
             error_jval_ref: _ffi.Pointer[_stubs.JSValueRef],
         ) -> _stubs.JSValueRef:
-            arg_jvals = _ffi.unpack(arg_jvals_ref, arg_count)
-
+            ctx = _js_ctx.JSContext(ctx_ref)
             try:
+                arg_jvals = _ffi.unpack(arg_jvals_ref, arg_count)
                 result = func(ctx, function_jobj, this_jobj, arg_jvals)
             except Exception as error:  # pylint: disable=broad-except
                 # TBD: Propagate exception back to JavaScript, after logging a Python
@@ -116,13 +117,14 @@ class JSFunction(_js_obj.JSObject):  # pylint: disable=abstract-method
                 # are to be re-raised in JS should come from a dedicated exception type
                 # with a clearly defined way of representing the error as a JSValueRef.
                 _ffi.logger.exception(
-                    'Exception in JS->Python callback; surface error from Python to JS'
+                    'Exception in JS->Python callback; surface error from Python '
+                    'to JS'
                 )
 
                 error_message = f'Error in JS->Python callback: {str(error)}'
                 with js_str.scoped(error_message) as error_message_jstr:
                     error_message_jval = _stubs.JSValueMakeString(
-                        ctx, error_message_jstr
+                        ctx.ref, error_message_jstr
                     )
 
                 error_jval_ref[0] = _js_obj.new_error(ctx, [error_message_jval])
@@ -135,7 +137,7 @@ class JSFunction(_js_obj.JSObject):  # pylint: disable=abstract-method
     @classmethod
     def new_from_callable(
         cls,
-        ctx: _stubs.JSContextRef,
+        ctx: _js_ctx.JSContext,
         name: str,
         callback: FunctionCallable,
     ) -> tuple[_stubs.JSObjectRef, _stubs.JSObjectCallAsFunctionCallback]:
@@ -165,7 +167,9 @@ class JSFunction(_js_obj.JSObject):  # pylint: disable=abstract-method
         """
         jcallback = cls.wrap_callable(callback)
         with js_str.scoped(name) as name_jstr:
-            jobj = _stubs.JSObjectMakeFunctionWithCallback(ctx, name_jstr, jcallback)
+            jobj = _stubs.JSObjectMakeFunctionWithCallback(
+                ctx.ref, name_jstr, jcallback
+            )
         return jobj, jcallback
 
 
