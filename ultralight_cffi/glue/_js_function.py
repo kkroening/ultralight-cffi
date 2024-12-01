@@ -3,8 +3,8 @@ from __future__ import annotations
 import contextlib
 from .. import _ffi
 from .. import _stubs
+from . import _js_obj
 from . import js_error
-from . import js_obj
 from . import js_str
 from collections.abc import Callable
 from typing import Self
@@ -21,7 +21,7 @@ FunctionCallable: TypeAlias = Callable[
 ]
 
 
-class JSFunction(js_obj.JSObject):  # pylint: disable=abstract-method
+class JSFunction(_js_obj.JSObject):  # pylint: disable=abstract-method
     @classmethod
     def new_from_script(
         cls,
@@ -125,7 +125,7 @@ class JSFunction(js_obj.JSObject):  # pylint: disable=abstract-method
                         ctx, error_message_jstr
                     )
 
-                error_jval_ref[0] = js_obj.new_error(ctx, [error_message_jval])
+                error_jval_ref[0] = _js_obj.new_error(ctx, [error_message_jval])
                 result = _ffi.NULL  # TBD
 
             return result

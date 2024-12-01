@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from .. import _ffi
 from .. import _stubs
+from . import _js_val
 from . import js_error
 from . import js_str
-from . import js_val
 from dataclasses import dataclass
 from typing import Self
 from typing import cast
 
 
 @dataclass(frozen=True)
-class JSObject(js_val.JSValue):
+class JSObject(_js_val.JSValue):
     ref: _stubs.JSObjectRef
     ctx: _stubs.JSContextRef
 
@@ -21,19 +21,19 @@ class JSObject(js_val.JSValue):
     def get_property(
         self,
         prop_name: str,
-    ) -> js_val.JSValue:
+    ) -> _js_val.JSValue:
         """Retrieves a property value from an Ultralight JavaScript object."""
         with js_str.scoped(prop_name) as prop_name_jstr:
             with js_error.scoped(self.ctx) as error_jval_ref:
                 prop_jval_ref = _stubs.JSObjectGetProperty(
                     self.ctx, self.ref, prop_name_jstr, error_jval_ref
                 )
-        return js_val.JSValue(prop_jval_ref, self.ctx)
+        return _js_val.JSValue(prop_jval_ref, self.ctx)
 
     def set_property(
         self,
         prop_name: str,
-        value: js_val.JSValue,
+        value: _js_val.JSValue,
     ) -> None:
         """Sets a property on an Ultralight JavaScript object."""
         assert value.ctx == self.ctx
@@ -62,7 +62,7 @@ class JSObject(js_val.JSValue):
             _stubs.JSPropertyNameArrayRelease(names_array)
         return names
 
-    def to_shallow_dict(self) -> dict[str, js_val.JSValue]:
+    def to_shallow_dict(self) -> dict[str, _js_val.JSValue]:
         """Converts a JavaScript object into a Python dictionary shallowly - i.e.
         without recursively converting the values from :class:`JSValueRef` /
         :class:`JSValue` to Python values/objects.
@@ -73,7 +73,7 @@ class JSObject(js_val.JSValue):
     def new(  # pylint: disable=dangerous-default-value
         cls,
         ctx: _stubs.JSContextRef,
-        val: _stubs.JSValueRef | js_val.PyValue = {},
+        val: _stubs.JSValueRef | _js_val.PyValue = {},
         *,
         prefer_undefined: bool = False,  # TBD
     ) -> Self:
@@ -83,7 +83,7 @@ class JSObject(js_val.JSValue):
         # if isinstance(val, _stubs.JSValueRef):
         #     jobj = cls(val, ctx)
 
-        if isinstance(val, js_val.JSValue):
+        if isinstance(val, _js_val.JSValue):
             if val.ctx != ctx:
                 raise RuntimeError(
                     'Value belongs to a different JavaScriptCore context'
@@ -94,11 +94,13 @@ class JSObject(js_val.JSValue):
                     + val.to_json_str('undefined')
                 )
 
-        elif isinstance(val, js_val.PyDictAny):
+        elif isinstance(val, _js_val.PyDictAny):
             jobj_ref = _stubs.JSObjectMake(ctx, _ffi.NULL, _ffi.NULL)
             jobj = cls(jobj_ref, ctx)
             for key, pyval in val.items():
-                jval = js_val.JSValue.new(ctx, pyval, prefer_undefined=prefer_undefined)
+                jval = _js_val.JSValue.new(
+                    ctx, pyval, prefer_undefined=prefer_undefined
+                )
                 with jval.scoped():
                     jobj.set_property(key, jval)
 
@@ -155,7 +157,7 @@ class JSObject(js_val.JSValue):
     def _new_from_list(
         cls,
         ctx: _stubs.JSContextRef,
-        pylist: js_val.PyList,
+        pylist: _js_val.PyList,
         *,
         prefer_undefined: bool = False,
     ) -> Self:

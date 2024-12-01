@@ -318,8 +318,8 @@ class JSValue:
 
         jobj = (
             self
-            if isinstance(self, js_obj.JSObject)
-            else js_obj.JSObject(self.ref, self.ctx)
+            if isinstance(self, _js_obj.JSObject)
+            else _js_obj.JSObject(self.ref, self.ctx)
         )
         shallow_dict = jobj.to_shallow_dict()
         return (
@@ -342,8 +342,8 @@ class JSValue:
         # jcls: _stubs.JSClassRef | None = None,
         *,
         prefer_undefined: bool = False,
-    ) -> js_obj.JSObject:
-        return js_obj.JSObject.new(ctx, pydict, prefer_undefined=prefer_undefined)
+    ) -> _js_obj.JSObject:
+        return _js_obj.JSObject.new(ctx, pydict, prefer_undefined=prefer_undefined)
 
     def to_list(
         self,
@@ -358,11 +358,11 @@ class JSValue:
                 + self.to_json_str('undefined')
             )
 
-        # length_jval_ref = js_obj.get_property(self.ctx, self.ref, 'length')
+        # length_jval_ref = _js_obj.get_property(self.ctx, self.ref, 'length')
         # length = JSValue(length_jval_ref, self.ctx).to_int()
 
         pylist: list[PyValue] = []
-        jarray = js_obj.JSObject(self.ref, self.ctx)  # TODO: JSArray instead?
+        jarray = _js_obj.JSObject(self.ref, self.ctx)  # TODO: JSArray instead?
         for index_str, jval in jarray.to_shallow_dict().items():
             # Note: Technically, JS arrays can contain elements with bizarre keys, such
             # as weird unicode characters (including aliases of number characters),
@@ -436,7 +436,7 @@ class JSValue:
                         prefer_float=prefer_float,
                     )
                 else:
-                    pyval = js_obj.JSObject(self.ref, self.ctx)
+                    pyval = _js_obj.JSObject(self.ref, self.ctx)
             case _:
                 raise NotImplementedError(f'Unsupported JavaScript type: {jtype}')
         return pyval
@@ -498,30 +498,8 @@ class JSValue:
         finally:
             _stubs.JSValueUnprotect(self.ctx, self.ref)
 
-    # @classmethod
-    # @contextmanager
-    # def scoped_from(  # TODO: probably not needed anymore
-    #     cls,
-    #     ctx: _stubs.JSContextRef,
-    #     val: _stubs.JSValueRef | PyValue,
-    #     *,
-    #     prefer_undefined: bool = False,
-    # ) -> Generator[JSValue, None, None]:
-    #     """Context manager that wraps a value as a temporarily protected JavaScript
-    #     value reference, automatically unprotecting the JS value when the context exits.
-    #
-    #     If the value is not already a JS value, then it's wrapped automatically.
-    #     """
-    #     jval = (
-    #         cls._new_from_python(ctx, val, prefer_undefined=prefer_undefined)
-    #         if isinstance(val, (JSValue, PyPrimitive, PyDictAny, PyListAny))
-    #         else cls(val, ctx)
-    #     )
-    #     with jval.scoped():
-    #         yield jval
 
-
-from . import js_obj  # pylint: disable=cyclic-import,wrong-import-position
+from . import _js_obj  # pylint: disable=cyclic-import,wrong-import-position
 
 __all__ = [
     'JSValue',

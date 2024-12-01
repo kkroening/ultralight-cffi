@@ -13,15 +13,22 @@ from ._surface import CustomSurface
 from .glue import JSFunction
 from .glue import JSObject
 from .glue import JSValue
+from .glue import UltralightError
+from .glue import UltralightJSError
+from .glue import UltralightULError
+from .glue import js_ctx
+from .glue import js_error
+from .glue import js_str
+from .glue import ul_error
+from .glue import ul_str
 
 # Note: wildcard imports generally suck, but since `_stubs.py` is auto-generated, this
 # errs on the side of avoiding excessively redundant boilerplate.  The glue-layer
 # submodules are gathered here but can also be explicitly imported as
 # `ultralight_cffi.glue` to keep it all together.
-from .glue import *  # isort: skip
 from ._stubs import *  # isort: skip
 
-__all__ = [
+__all__ = _stubs.__all__ + [
     'callback',
     'CData',
     'CustomSurface',
@@ -30,11 +37,18 @@ __all__ = [
     'JSFunction',
     'JSObject',
     'JSValue',
+    'js_ctx',
+    'js_error',
+    'js_str',
     'Lib',
     'load',
     'logger',
     'new',
     'NULL',
+    'UltralightError',
+    'UltralightJSError',
+    'UltralightULError',
+    'ul_error',
+    'ul_str',
     'unpack',
 ]
-__all__ += _stubs.__all__ + glue.__all__
