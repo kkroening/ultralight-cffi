@@ -98,10 +98,9 @@ class JSObject(_js_val.JSValue):
             jobj_ref = _stubs.JSObjectMake(ctx, _ffi.NULL, _ffi.NULL)
             jobj = cls(jobj_ref, ctx)
             for key, pyval in val.items():
-                jval = _js_val.JSValue.new(
+                with _js_val.JSValue.new(
                     ctx, pyval, prefer_undefined=prefer_undefined
-                )
-                with jval.scoped():
+                ) as jval:
                     jobj.set_property(key, jval)
 
         else:

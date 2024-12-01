@@ -5,11 +5,10 @@ from .. import _ffi
 from .. import _stubs
 from . import js_error
 from . import js_str
-from collections.abc import Generator
 from collections.abc import Mapping
 from collections.abc import Sequence
-from contextlib import contextmanager
 from dataclasses import dataclass
+from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Self
@@ -489,14 +488,17 @@ class JSValue:
             else cls(val, ctx)
         )
 
-    @contextmanager
-    def scoped(self) -> Generator[Self, None, None]:
-        """Context manager that automatically protects and unprotects a JS value."""
+    def __enter__(self) -> Self:
         _stubs.JSValueProtect(self.ctx, self.ref)
-        try:
-            yield self
-        finally:
-            _stubs.JSValueUnprotect(self.ctx, self.ref)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        _stubs.JSValueUnprotect(self.ctx, self.ref)
 
 
 from . import _js_obj  # pylint: disable=cyclic-import,wrong-import-position

@@ -711,7 +711,7 @@ class Test_JSValue__new_from_python__to_python:
         pass  # TODO: test
 
 
-def test_JSValue__scoped(faker, js_ctx):
+def test_JSValue__enter__exit(faker, js_ctx):
     def get_protected_count():
         # Note: `JSGetMemoryUsageStatistics` is an optional extra JavaScriptCore export
         # and not strictly necessary to include, but if available, it helps with
@@ -730,18 +730,18 @@ def test_JSValue__scoped(faker, js_ctx):
     pyval1 = faker.sentence()
     pyval2 = faker.sentence()
 
-    with ultra.JSValue.new(js_ctx, pyval1).scoped() as jval1:
+    with ultra.JSValue.new(js_ctx, pyval1) as jval1:
         assert jval1.to_python() == pyval1
         assert get_protected_count() == orig_protected_count + 1
 
         # Expectation - re-protecting doesn't increase/decrease protection count:
-        with jval1.scoped() as jval2:
+        with jval1 as jval2:
             assert jval2 is jval1
             assert get_protected_count() == orig_protected_count + 1
         assert get_protected_count() == orig_protected_count + 1
 
         # Expectation - nesting scope for different value has independent protection:
-        with ultra.JSValue._new_from_python(js_ctx, pyval2).scoped() as jval2:
+        with ultra.JSValue._new_from_python(js_ctx, pyval2) as jval2:
             assert jval2.to_python() == pyval2
             assert get_protected_count() == orig_protected_count + 2
         assert get_protected_count() == orig_protected_count + 1
