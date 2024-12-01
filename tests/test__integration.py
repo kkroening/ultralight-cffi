@@ -63,37 +63,45 @@ def test__custom_surface(lib, sdk_init):
     expected_width = 400
     expected_height = 300
 
+    print('==== step 01')
     lib.ulPlatformSetSurfaceDefinition(MemorySurface.get_definition()[0])
 
+    print('==== step 02')
     config = lib.ulCreateConfig()
     renderer = lib.ulCreateRenderer(config)
     lib.ulDestroyConfig(config)
 
+    print('==== step 03')
     view_config = lib.ulCreateViewConfig()
     view = lib.ulCreateView(
         renderer, expected_width, expected_height, view_config, ultralight_cffi.NULL
     )
     lib.ulDestroyViewConfig(view_config)
 
+    print('==== step 04')
     try:
         html = '<html><body style="background-color:#ff0000"><h1 style="color:#00ff00">Test</h1></body></html>'
         html_obj = lib.ulCreateStringUTF8(html.encode(), len(html))
         lib.ulViewLoadHTML(view, html_obj)
         lib.ulDestroyString(html_obj)
+        print('==== step 05')
 
         # Render the view
         lib.ulUpdate(renderer)
         lib.ulRender(renderer)
+        print('==== step 06')
 
         # Access the custom surface
         surface_ffi = lib.ulViewGetSurface(view)
         surface = MemorySurface.from_ffi(lib, surface_ffi)
+        print('==== step 07')
 
         # Lock the surface and inspect the pixel buffer
         try:
             pixels = surface.lock_pixels()
             assert surface.width == expected_width
             assert surface.height == expected_height
+            print('==== step 08')
 
             red_pixel = bytes([0x00, 0x00, 0xFF, 0xFF])  # Red background
             green_pixel = bytes([0x00, 0xFF, 0x00, 0xFF])  # Green text
@@ -105,6 +113,8 @@ def test__custom_surface(lib, sdk_init):
         finally:
             # TODO: do better context management
             surface.unlock_pixels()
+            print('==== step 09')
 
     finally:
         lib.ulDestroyView(view)
+    print('==== step 10')
