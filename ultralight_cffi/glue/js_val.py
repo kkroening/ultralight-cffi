@@ -31,6 +31,14 @@ if TYPE_CHECKING:
     PyDict: TypeAlias = PyDictAny[str, 'PyValue']
     PyList: TypeAlias = PyListAny['PyValue']
     PyValue: TypeAlias = 'JSValue' | PyPrimitive | PyList | PyDict
+    """Type alias for Python types that can trivially be converted to/from JavaScript.
+
+    :class:`JSValue` is included in the type alias in order to allow for hybridized
+    Python data that contains references to existing JavaScript values/objects - for
+    example, a dict containing a list of :class:`JSValueRef` - which avoids having to
+    always fully materialize JavaScript object graphs as Python data trees.
+    """
+
 else:
     PyDict = PyDictAny
     PyList = PyListAny
@@ -111,7 +119,7 @@ class JSValue:
             )
 
     @classmethod
-    def from_none(
+    def _new_from_none(
         cls,
         ctx: _stubs.JSContextRef,
         *,
@@ -160,7 +168,7 @@ class JSValue:
         return pyval
 
     @classmethod
-    def from_bool(
+    def _new_from_bool(
         cls,
         ctx: _stubs.JSContextRef,
         value: bool,
@@ -189,7 +197,7 @@ class JSValue:
         return pyval
 
     @classmethod
-    def from_float(
+    def _new_from_float(
         cls,
         ctx: _stubs.JSContextRef,
         value: float,
@@ -227,7 +235,7 @@ class JSValue:
         return int(float_pyval)
 
     @classmethod
-    def from_int(
+    def _new_from_int(
         cls,
         ctx: _stubs.JSContextRef,
         value: int,
@@ -263,7 +271,7 @@ class JSValue:
         return pyval
 
     @classmethod
-    def from_str(
+    def _new_from_str(
         cls,
         ctx: _stubs.JSContextRef,
         pystr: str,
@@ -281,7 +289,7 @@ class JSValue:
         self,
         *,
         max_depth: int = 5,  # TODO: make optional
-        prefer_float: bool = False,
+        prefer_float: bool = True,
         strict: bool = True,
     ) -> PyDict:
         """Converts a JavaScript object value into a Python dictionary (recursively, up
@@ -308,10 +316,15 @@ class JSValue:
                 + self.to_json_str('undefined')
             )
 
-        shallow_dict = js_obj.to_shallow_dict(self.ctx, self.ref)
+        jobj = (
+            self
+            if isinstance(self, js_obj.JSObject)
+            else js_obj.JSObject(self.ref, self.ctx)
+        )
+        shallow_dict = jobj.to_shallow_dict()
         return (
             {
-                k: JSValue(v, self.ctx).to_python(
+                k: v.to_python(
                     max_depth=max_depth - 1,
                     prefer_float=prefer_float,
                 )
@@ -322,24 +335,20 @@ class JSValue:
         )
 
     @classmethod
-    def from_dict(
+    def _new_from_dict(
         cls,
         ctx: _stubs.JSContextRef,
         pydict: PyDict,
         # jcls: _stubs.JSClassRef | None = None,
         *,
         prefer_undefined: bool = False,
-    ) -> Self:
-        jobj_ref = _stubs.JSObjectMake(ctx, _ffi.NULL, _ffi.NULL)
-        for key, pyval in pydict.items():
-            with cls.scoped_from(ctx, pyval, prefer_undefined=prefer_undefined) as jval:
-                js_obj.set_property(ctx, jobj_ref, key, jval.ref)
-        return cls(jobj_ref, ctx)
+    ) -> js_obj.JSObject:
+        return js_obj.JSObject.new(ctx, pydict, prefer_undefined=prefer_undefined)
 
     def to_list(
         self,
         *,
-        prefer_float: bool = False,
+        prefer_float: bool = True,
         max_depth: int = 5,  # TODO: make optional
     ) -> PyList:
         """Converts a JavaScript object value into a Python list (recursively)."""
@@ -353,7 +362,8 @@ class JSValue:
         # length = JSValue(length_jval_ref, self.ctx).to_int()
 
         pylist: list[PyValue] = []
-        for index_str, jval_ref in js_obj.to_shallow_dict(self.ctx, self.ref).items():
+        jarray = js_obj.JSObject(self.ref, self.ctx)  # TODO: JSArray instead?
+        for index_str, jval in jarray.to_shallow_dict().items():
             # Note: Technically, JS arrays can contain elements with bizarre keys, such
             # as weird unicode characters (including aliases of number characters),
             # discontiguous index ranges, negative numbers, etc. - but for simplicity
@@ -365,7 +375,6 @@ class JSValue:
             # the remainder of cases are just asking for trouble anyways.
 
             if index_str.isascii() and index_str.isnumeric():
-                jval = JSValue(jval_ref, self.ctx)
                 val: PyValue = (
                     jval.to_python(
                         max_depth=max_depth - 1,
@@ -379,7 +388,7 @@ class JSValue:
         return pylist
 
     @classmethod
-    def from_list(
+    def _new_from_list(
         cls,
         ctx: _stubs.JSContextRef,
         pylist: PyList,
@@ -387,8 +396,7 @@ class JSValue:
         prefer_undefined: bool = False,
     ) -> Self:
         jval_refs = [
-            cls.from_python(ctx, x, prefer_undefined=prefer_undefined).ref
-            for x in pylist
+            cls.new(ctx, x, prefer_undefined=prefer_undefined).ref for x in pylist
         ]
         jvals_ptr = _ffi.new('JSValueRef[]', jval_refs)
 
@@ -402,7 +410,7 @@ class JSValue:
         self,
         *,
         max_depth: int = 5,  # TODO: make optional
-        prefer_float: bool = False,
+        prefer_float: bool = True,
     ) -> PyValue:
         jtype = _stubs.JSValueGetType(self.ctx, self.ref)
         pyval: PyValue
@@ -417,23 +425,24 @@ class JSValue:
             case _stubs.kJSTypeBoolean:
                 pyval = self.to_bool()
             case _stubs.kJSTypeObject:
-                pyval = (
-                    self.to_list(
+                if _stubs.JSValueIsArray(self.ctx, self.ref):
+                    pyval = self.to_list(
                         max_depth=max_depth,
                         prefer_float=prefer_float,
                     )
-                    if _stubs.JSValueIsArray(self.ctx, self.ref)
-                    else self.to_dict(
+                elif max_depth:
+                    pyval = self.to_dict(
                         max_depth=max_depth,
                         prefer_float=prefer_float,
                     )
-                )
+                else:
+                    pyval = js_obj.JSObject(self.ref, self.ctx)
             case _:
                 raise NotImplementedError(f'Unsupported JavaScript type: {jtype}')
         return pyval
 
     @classmethod
-    def from_python(
+    def _new_from_python(
         cls,
         ctx: _stubs.JSContextRef,
         pyval: PyValue,
@@ -442,26 +451,43 @@ class JSValue:
     ) -> JSValue:
         """Converts a Python value into a corresponding JavaScript value."""
         if pyval is None:
-            jval = cls.from_none(ctx, undefined=prefer_undefined)
+            jval = cls._new_from_none(ctx, undefined=prefer_undefined)
         elif isinstance(pyval, JSValue):
             jval = pyval
         elif isinstance(pyval, bool):
-            jval = cls.from_bool(ctx, pyval)
+            jval = cls._new_from_bool(ctx, pyval)
         elif isinstance(pyval, float):
-            jval = cls.from_float(ctx, pyval)
+            jval = cls._new_from_float(ctx, pyval)
         elif isinstance(pyval, int):
-            jval = cls.from_int(ctx, pyval)
+            jval = cls._new_from_int(ctx, pyval)
         elif isinstance(pyval, str):
-            jval = cls.from_str(ctx, pyval)
+            jval = cls._new_from_str(ctx, pyval)
         elif isinstance(pyval, PyDictAny):
-            jval = cls.from_dict(ctx, pyval, prefer_undefined=prefer_undefined)
+            jval = cls._new_from_dict(ctx, pyval, prefer_undefined=prefer_undefined)
         elif isinstance(pyval, PyListAny):
-            jval = cls.from_list(ctx, pyval, prefer_undefined=prefer_undefined)
+            jval = cls._new_from_list(ctx, pyval, prefer_undefined=prefer_undefined)
         else:
             raise NotImplementedError(
                 f'Unable to convert Python object into JavaScript: {pyval}'
             )
         return jval
+
+    @classmethod
+    def new(
+        cls,
+        ctx: _stubs.JSContextRef,
+        val: _stubs.JSValueRef | PyValue,
+        *,
+        prefer_undefined: bool = False,
+    ) -> JSValue:
+        """Constructs a JavaScript value from a Python value or reference to existing
+        JavaScript value.
+        """
+        return (
+            cls._new_from_python(ctx, val, prefer_undefined=prefer_undefined)
+            if isinstance(val, (JSValue, PyPrimitive, PyDictAny, PyListAny))
+            else cls(val, ctx)
+        )
 
     @contextmanager
     def scoped(self) -> Generator[Self, None, None]:
@@ -472,27 +498,27 @@ class JSValue:
         finally:
             _stubs.JSValueUnprotect(self.ctx, self.ref)
 
-    @classmethod
-    @contextmanager
-    def scoped_from(
-        cls,
-        ctx: _stubs.JSContextRef,
-        val: _stubs.JSValueRef | PyValue,
-        *,
-        prefer_undefined: bool = False,
-    ) -> Generator[JSValue, None, None]:
-        """Context manager that wraps a value as a temporarily protected JavaScript
-        value reference, automatically unprotecting the JS value when the context exits.
-
-        If the value is not already a JS value, then it's wrapped automatically.
-        """
-        jval = (
-            cls.from_python(ctx, val, prefer_undefined=prefer_undefined)
-            if isinstance(val, (JSValue, PyPrimitive, PyDictAny, PyListAny))
-            else cls(val, ctx)
-        )
-        with jval.scoped():
-            yield jval
+    # @classmethod
+    # @contextmanager
+    # def scoped_from(  # TODO: probably not needed anymore
+    #     cls,
+    #     ctx: _stubs.JSContextRef,
+    #     val: _stubs.JSValueRef | PyValue,
+    #     *,
+    #     prefer_undefined: bool = False,
+    # ) -> Generator[JSValue, None, None]:
+    #     """Context manager that wraps a value as a temporarily protected JavaScript
+    #     value reference, automatically unprotecting the JS value when the context exits.
+    #
+    #     If the value is not already a JS value, then it's wrapped automatically.
+    #     """
+    #     jval = (
+    #         cls._new_from_python(ctx, val, prefer_undefined=prefer_undefined)
+    #         if isinstance(val, (JSValue, PyPrimitive, PyDictAny, PyListAny))
+    #         else cls(val, ctx)
+    #     )
+    #     with jval.scoped():
+    #         yield jval
 
 
 from . import js_obj  # pylint: disable=cyclic-import,wrong-import-position

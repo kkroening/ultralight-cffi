@@ -6,6 +6,7 @@ ignore=CVS
 
 [MESSAGES CONTROL]
 disable=
+    duplicate-code,  # TMP/FIXME: requires `glue/` directory reorg
     fixme,  # (comment this line to see all TODOs/FIXMEs)
     implicit-str-concat,  # (strings may be split across multiple lines)
     missing-class-docstring,
