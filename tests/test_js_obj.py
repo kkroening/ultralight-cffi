@@ -17,8 +17,14 @@ def test_JSObject__set_property__get_property(js_ctx):
 
 class Test_JSObject__new:
     def test__empty(self, faker, js_ctx):
+        orig_count = js_ctx.get_protected_object_count()
+
         jobj = ultra.JSObject.new(js_ctx)
         assert jobj.get_property_names() == []
+
+        assert js_ctx.get_protected_object_count() == orig_count + 1
+        del jobj
+        assert js_ctx.get_protected_object_count() == orig_count
 
     def test__simple(self, faker, js_ctx):
         pydict = {
@@ -30,6 +36,34 @@ class Test_JSObject__new:
         assert jobj.get_property('key1').to_str() == pydict['key1']
         assert jobj.get_property('key2').to_bool() == pydict['key2']
         assert jobj.to_python() == pydict
+
+    def test__from_ref(self, faker, js_ctx):
+        orig_count = js_ctx.get_protected_object_count()
+        jobj1 = ultra.JSObject.new(js_ctx)
+        assert js_ctx.get_protected_object_count() == orig_count + 1
+
+        assert ultra.JSObject.new(js_ctx, jobj1.ref) is jobj1
+
+        # TBD: downgrading the JSObject to an equivalent JSValue drops protection.
+        # (This behavior could be dangerous, if JSValues are retained without being
+        # attached to the object graph and then accessed again after garbage collection.
+        # Although there's a small amount of overhead to continuously protect/unprotect
+        # values and maintain a mapping of JSValue Python objects, it may be negligible
+        # in comparison to the safety risk of not extending protection to cover JSValues
+        # but nonetheless it's the current expectation)
+        jval1 = ultra.JSValue(jobj1.ref, js_ctx)
+        del jobj1
+        assert js_ctx.get_protected_object_count() == orig_count
+
+        # Expectation - rematerializing the JSObject creates a new Python object since
+        # the previous one was collected, but the same underlying JS obj still exists:
+        jobj2 = ultra.JSObject(jval1.ref, js_ctx)
+        assert js_ctx.get_protected_object_count() == orig_count + 1
+        del jobj2
+        assert js_ctx.get_protected_object_count() == orig_count
+
+    def test__from_jval(self, faker, js_ctx):
+        pass  # TODO: test (including re-creation)
 
     def test__nested_pydict(self, faker, js_ctx):
         nested_pydict = {'key1': faker.pyfloat(3, 3)}

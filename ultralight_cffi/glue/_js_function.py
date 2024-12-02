@@ -49,7 +49,7 @@ class JSFunction(_js_obj.JSObject):  # pylint: disable=abstract-method
             body_jstr = exit_stack.enter_context(js_str.scoped(script_body))
             source_url_jstr = exit_stack.enter_context(js_str.scoped(source_url))
 
-            with js_error.scoped() as error_jval_ref:
+            with js_error.scoped(ctx) as error_jval_ref:
                 jobj_ref = _stubs.JSObjectMakeFunction(
                     ctx.ref,
                     name_jstr,

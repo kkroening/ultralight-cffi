@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 from .. import _ffi
 from .. import _stubs
@@ -39,6 +41,20 @@ class JSGlobalContext(JSContext):
         with js_str.scoped(name) as name_jstr:
             _stubs.JSGlobalContextSetName(self.ref, name_jstr)
 
+    def get_memory_usage_statistics(self) -> _js_obj.JSObject:
+        stats_obj_ref = _stubs.JSGetMemoryUsageStatistics(self.ref)
+        return _js_obj.JSObject(stats_obj_ref, self)
+
+    def get_protected_object_count(self) -> int:
+        """Convenience method for getting the number of protected objects, according to
+        the memory usage stats.
+        """
+        return (
+            self.get_memory_usage_statistics()
+            .get_property('protectedObjectCount')
+            .to_int()
+        )
+
     @classmethod
     def new(cls) -> Self:
         ref = _stubs.JSGlobalContextCreate(_ffi.NULL)
@@ -74,6 +90,8 @@ class JSGlobalContext(JSContext):
     ) -> None:
         _stubs.JSGlobalContextRelease(self.ref)
 
+
+from . import _js_obj  # pylint: disable=cyclic-import,wrong-import-position
 
 __all__ = [
     'JSContext',

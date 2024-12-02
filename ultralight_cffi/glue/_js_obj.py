@@ -1,23 +1,53 @@
 from __future__ import annotations
 
+import dataclasses
+import weakref
 from .. import _ffi
 from .. import _stubs
 from . import _js_ctx
 from . import _js_val
 from . import js_error
 from . import js_str
+from collections.abc import MutableMapping
 from dataclasses import dataclass
+from typing import ClassVar
 from typing import Self
-from typing import cast
 
 
 @dataclass(frozen=True)
 class JSObject(_js_val.JSValue):
+    _weak_mapping: ClassVar[MutableMapping[_stubs.JSObjectRef, JSObject]] = (
+        weakref.WeakValueDictionary()
+    )
+
     ref: _stubs.JSObjectRef
     ctx: _js_ctx.JSContext
 
+    _finalizer: weakref.finalize = dataclasses.field(
+        repr=False, compare=False, init=False
+    )
+
     def __post_init__(self) -> None:
-        assert _stubs.JSValueIsObject(self.ctx.ref, self.ref)
+        if not _stubs.JSValueIsObject(self.ctx.ref, self.ref):
+            # The caller somehow constructed a JSObject instance from a reference that's
+            # not actually an object; maybe it's at least a JSValue that can be
+            # serialized as JSON for an error message.
+            jval = _js_val.JSValue(self.ref, self.ctx)
+            raise TypeError(
+                'Expected JavaScript value to be an object: '
+                + jval.to_json_str('undefined')
+            )
+
+        if self.ref in self._weak_mapping:
+            raise RuntimeError('Previously mapped JavaScript object already exists')
+
+        self._weak_mapping[self.ref] = self
+        _stubs.JSValueProtect(self.ctx.ref, self.ref)
+        object.__setattr__(
+            self,
+            '_finalizer',
+            weakref.finalize(self, _stubs.JSValueUnprotect, self.ctx.ref, self.ref),
+        )
 
     def get_property(
         self,
@@ -25,7 +55,7 @@ class JSObject(_js_val.JSValue):
     ) -> _js_val.JSValue:
         """Retrieves a property value from an Ultralight JavaScript object."""
         with js_str.scoped(prop_name) as prop_name_jstr:
-            with js_error.scoped() as error_jval_ref:
+            with js_error.scoped(self.ctx) as error_jval_ref:
                 prop_jval_ref = _stubs.JSObjectGetProperty(
                     self.ctx.ref, self.ref, prop_name_jstr, error_jval_ref
                 )
@@ -39,7 +69,7 @@ class JSObject(_js_val.JSValue):
         """Sets a property on an Ultralight JavaScript object."""
         assert value.ctx.ref == self.ctx.ref
         with js_str.scoped(prop_name) as prop_name_jstr:
-            with js_error.scoped() as error_jval_ref:
+            with js_error.scoped(self.ctx) as error_jval_ref:
                 _stubs.JSObjectSetProperty(
                     self.ctx.ref,
                     self.ref,
@@ -73,6 +103,7 @@ class JSObject(_js_val.JSValue):
     @classmethod
     def new(  # pylint: disable=dangerous-default-value
         cls,
+        # TODO: switch arg order for consistency
         ctx: _js_ctx.JSContext,
         val: _stubs.JSValueRef | _js_val.PyValue = {},
         *,
@@ -81,19 +112,33 @@ class JSObject(_js_val.JSValue):
         """Constructs a JavaScript object from a Python dict/mapping or reference to
         existing JavaScript object.
         """
-        # if isinstance(val, _stubs.JSValueRef):
-        #     jobj = cls(val, ctx)
-
         if isinstance(val, _js_val.JSValue):
             if val.ctx.ref != ctx.ref:
                 raise RuntimeError(
                     'Value belongs to a different JavaScriptCore context'
                 )
-            if not _stubs.JSValueIsObject(ctx.ref, val.ref):
+            ref = val.ref
+        elif (
+            isinstance(val, _ffi.CData)
+            and _ffi.typeof(val).cname == 'struct OpaqueJSValue *'
+        ):
+            ref = val
+        else:
+            ref = None
+
+        if ref is not None:
+            # TODO: map to expected subclass
+            existing_jobj = cls._weak_mapping.get(ref)
+            if existing_jobj is None:
+                jobj = cls(ref, ctx)
+                cls._weak_mapping[ref] = jobj
+            elif not isinstance(existing_jobj, cls):
                 raise TypeError(
-                    'Expected JavaScript value to be an object: '
-                    + val.to_json_str('undefined')
+                    f'Previously mapped JavaScript object has unexpected type '
+                    f'{type(existing_jobj).__qualname__} rather than {cls.__qualname__}'
                 )
+            else:
+                jobj = existing_jobj
 
         elif isinstance(val, _js_val.PyDictAny):
             jobj_ref = _stubs.JSObjectMake(ctx.ref, _ffi.NULL, _ffi.NULL)
@@ -107,7 +152,8 @@ class JSObject(_js_val.JSValue):
         else:
             raise TypeError(
                 f'{cls.__qualname__}.new requires either a Python dict/mapping or an '
-                'existing JavaScript object (JSValue/JSValueRef).'
+                'existing JavaScript object (JSValue/JSValueRef); got '
+                f'{type(val).__qualname__} instance'
             )
 
         return jobj
@@ -179,18 +225,14 @@ def new_error(
         It's the caller's responsibility to ensure that the resulting JS object is not
         prematurely garbage collected by the JavaScript runtime.
     """
-    arg_jvals_ref = cast(
-        _ffi.Pointer[_stubs.JSValueRef], _ffi.new('JSValueRef[]', arg_jvals)
-    )
-
-    with js_error.scoped() as nested_error_jobj_ref:
+    arg_jvals_ref = _ffi.new('JSValueRef[]', arg_jvals)
+    with js_error.scoped(ctx) as nested_error_jobj_ref:
         error_jobj = _stubs.JSObjectMakeError(
             ctx.ref,
             len(arg_jvals),
             arg_jvals_ref,
             nested_error_jobj_ref,
         )
-
     return error_jobj
 
 

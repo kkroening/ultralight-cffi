@@ -88,7 +88,7 @@ class JSValue:
             :func:`to_json_str` is used for inspection, debugging, error messages, etc.
             - but note that doing so makes the output non-JSON-compliant.
         """
-        with js_error.scoped() as error_jval_ptr:  # potentially recursive
+        with js_error.scoped(self.ctx) as error_jval_ptr:  # potentially recursive
             jstr = _stubs.JSValueCreateJSONString(
                 self.ctx.ref,
                 self.ref,
@@ -192,7 +192,7 @@ class JSValue:
                 'Expected JavaScript value to be a number: '
                 + self.to_json_str('undefined')
             )
-        with js_error.scoped() as error_jval_ptr:
+        with js_error.scoped(self.ctx) as error_jval_ptr:
             pyval = _stubs.JSValueToNumber(self.ctx.ref, self.ref, error_jval_ptr)
         return pyval
 
@@ -261,7 +261,7 @@ class JSValue:
                 + self.to_json_str('undefined')
             )
 
-        with js_error.scoped() as error_jval_ptr:
+        with js_error.scoped(self.ctx) as error_jval_ptr:
             jstr = _stubs.JSValueToStringCopy(self.ctx.ref, self.ref, error_jval_ptr)
         try:
             pyval = js_str.decode(jstr)
@@ -319,7 +319,7 @@ class JSValue:
         jobj = (
             self
             if isinstance(self, _js_obj.JSObject)
-            else _js_obj.JSObject(self.ref, self.ctx)
+            else _js_obj.JSObject.new(self.ctx, self.ref)
         )
         shallow_dict = jobj.to_shallow_dict()
         return (
@@ -359,7 +359,7 @@ class JSValue:
             )
 
         pylist: list[PyValue] = []
-        jarray = _js_obj.JSObject(self.ref, self.ctx)  # TODO: JSArray instead?
+        jarray = _js_obj.JSObject.new(self.ctx, self.ref)  # TODO: JSArray instead?
         for index_str, jval in jarray.to_shallow_dict().items():
             # Note: Technically, JS arrays can contain elements with bizarre keys, such
             # as weird unicode characters (including aliases of number characters),
@@ -397,7 +397,7 @@ class JSValue:
         ]
         jvals_ptr = _ffi.new('JSValueRef[]', jval_refs)
 
-        with js_error.scoped() as error_jval_ptr:
+        with js_error.scoped(ctx) as error_jval_ptr:
             jarray = _stubs.JSObjectMakeArray(
                 ctx.ref, len(jval_refs), jvals_ptr, error_jval_ptr
             )
@@ -433,7 +433,7 @@ class JSValue:
                         prefer_float=prefer_float,
                     )
                 else:
-                    pyval = _js_obj.JSObject(self.ref, self.ctx)
+                    pyval = _js_obj.JSObject.new(self.ctx, self.ref)
             case _:
                 raise NotImplementedError(f'Unsupported JavaScript type: {jtype}')
         return pyval
@@ -472,6 +472,7 @@ class JSValue:
     @classmethod
     def new(
         cls,
+        # TODO: switch arg order for consistency
         ctx: _js_ctx.JSContext,
         val: _stubs.JSValueRef | PyValue,
         *,

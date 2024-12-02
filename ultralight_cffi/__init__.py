@@ -8,6 +8,7 @@ from ._ffi import callback
 from ._ffi import load
 from ._ffi import logger
 from ._ffi import new
+from ._ffi import typeof
 from ._ffi import unpack
 from ._surface import CustomSurface
 from .glue import JSContext
@@ -47,6 +48,7 @@ __all__ = _stubs.__all__ + [
     'logger',
     'new',
     'NULL',
+    'typeof',
     'UltralightError',
     'UltralightJSError',
     'UltralightULError',

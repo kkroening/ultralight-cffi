@@ -712,24 +712,16 @@ class Test_JSValue__new_from_python__to_python:
 
 
 def test_JSValue__enter__exit(faker, js_ctx):
-    def get_protected_count():
-        # Note: `JSGetMemoryUsageStatistics` is an optional extra JavaScriptCore export
-        # and not strictly necessary to include, but if available, it helps with
-        # internal testing at the very least.
-        if hasattr(ultra, 'JSGetMemoryUsageStatistics'):
-            stats_obj_ref = ultra.JSGetMemoryUsageStatistics(js_ctx.ref)
-            stats = ultra.JSObject(stats_obj_ref, js_ctx).to_python()
-            count = stats['protectedObjectCount']
-        else:
-            count = mock.ANY
-        return count
-
+    get_protected_count = js_ctx.get_protected_object_count
     orig_protected_count = get_protected_count()
 
     pyval1 = faker.sentence()
     pyval2 = faker.sentence()
 
     with ultra.JSValue.new(js_ctx, pyval1) as jval1:
+        assert get_protected_count() == orig_protected_count + 1
+
+        # Expectation - converting to Python doesn't increase protection count:
         assert jval1.to_python() == pyval1
         assert get_protected_count() == orig_protected_count + 1
 

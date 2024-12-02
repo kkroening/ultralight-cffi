@@ -5,6 +5,7 @@ import cffi
 import logging
 import pathlib
 import platform
+import types
 from . import _bindings
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -69,27 +70,86 @@ if TYPE_CHECKING:  # CFFI type annotation workarounds
 
     NULL = Pointer[Any]()
 
+    # FFI.CData is not available at runtime, so define an alias to be used for static
+    # typing without causing a meltdown at runtime:
+    CData: TypeAlias = cffi.FFI.CData
+    CType: TypeAlias = cffi.FFI.CType
+
     # The official `types-cffi` stubs massacre the signatures of the decorated methods,
     # so these definitions serve as a partial replacement for more reliable static
     # typing, but with no runtime effect.
+
+    @overload
+    def cast(
+        cdecl: Literal['struct OpaqueJSValue *'],
+        source: CData | int,
+    ) -> _stubs.JSValueRef: ...
+
+    @overload
+    def cast(
+        cdecl: str | CType,
+        source: CData | int,
+    ) -> CData | _stubs.JSValueRef: ...
+
+    def cast(
+        cdecl: str | CType,
+        source: CData | int,
+    ) -> CData | _stubs.JSValueRef: ...
+
+    def typeof(
+        cdecl: (
+            _stubs.JSValueRef
+            | _stubs.JSObjectRef
+            | str
+            | CData
+            | types.BuiltinFunctionType
+            | types.FunctionType
+        ),
+    ) -> CType: ...
 
     @overload
     def new(
         cdecl: Literal['JSStringRef[]'],
         init: list[_stubs.JSStringRef | None],
     ) -> Pointer[_stubs.JSStringRef]: ...
+
     @overload
     def new(
         cdecl: Literal['JSValueRef[]'],
-        init: list[_stubs.JSValueRef | None],
+        init: list[_stubs.JSValueRef | None] | list[_stubs.JSValueRef],
     ) -> Pointer[_stubs.JSValueRef]: ...
+
+    @overload
+    def new(
+        cdecl: Literal['JSValueRef *'],
+        init: Any = ...,
+    ) -> Pointer[_stubs.JSValueRef]: ...
+
+    @overload
+    def new(
+        cdecl: Literal['ULString *'],
+        init: Any = ...,
+    ) -> Pointer[_stubs.ULString]: ...
+
     @overload
     def new(
         cdecl: str,
         init: Any = ...,
-    ) -> Any: ...
+    ) -> (
+        Pointer[_stubs.JSStringRef]
+        | Pointer[_stubs.JSValueRef]
+        | Pointer[_stubs.ULString]
+        | CData
+    ): ...
 
-    def new(cdecl: str, init: Any = None) -> Any:
+    def new(
+        cdecl: str, init: Any = None
+    ) -> (
+        Pointer[_stubs.JSStringRef]
+        | Pointer[_stubs.JSValueRef]
+        | Pointer[_stubs.ULString]
+        | CData
+    ):
         """Equivalent to ``ffi.new(...)`` but with proper static typing, based on the
         ``cdecl`` argument.
 
@@ -129,15 +189,15 @@ if TYPE_CHECKING:  # CFFI type annotation workarounds
 
         return wrap
 
-    # FFI.CData is not available at runtime, so define an alias to be used for static
-    # typing without causing a meltdown at runtime:
-    CData: TypeAlias = cffi.FFI.CData
 else:
-    NULL = ffi.NULL
     callback = ffi.callback
-    CData: TypeAlias = Any
+    CData = _cffi_backend._CDataBase  # pylint: disable=protected-access
+    CType = _cffi_backend.CType
     new = ffi.new
+    NULL = ffi.NULL
+    typeof = ffi.typeof
     unpack = ffi.unpack
+
 
 Lib: TypeAlias = _cffi_backend.Lib
 
