@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import math
 from .. import _ffi
 from .. import _stubs
@@ -48,7 +49,7 @@ else:
 @dataclass(frozen=True)
 class JSValue:
     ref: _stubs.JSValueRef
-    ctx: _js_ctx.JSContext
+    ctx: _js_ctx.JSContext = dataclasses.field(repr=False)
 
     @overload
     def to_json_str(
@@ -498,6 +499,23 @@ class JSValue:
         traceback: TracebackType | None,
     ) -> None:
         _stubs.JSValueUnprotect(self.ctx.ref, self.ref)
+
+    def check_context(
+        self,
+        expected_context: _js_ctx.JSContext,
+    ) -> None:
+        if self.ctx.ref is not expected_context.ref:
+            raise RuntimeError(
+                '{self} belongs to incorrect context {self.ctx.ref} rather than '
+                '{expected_context.ref}'
+            )
+        if self.ctx is not expected_context:
+            # The expectation is that there's exactly one JSContext Python object for
+            # each particular JSContextRef CFFI pointer; in other words, it's considered
+            # to be an error for two JSContexts to have the same JSContextRef pointer.
+            raise RuntimeError(
+                '{self} belongs to duplicated context {expected_context}'
+            )
 
 
 from . import _js_obj  # pylint: disable=cyclic-import,wrong-import-position

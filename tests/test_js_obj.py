@@ -1,3 +1,4 @@
+import contextlib
 import ultralight_cffi as ultra
 
 
@@ -92,3 +93,51 @@ class Test_JSObject__new:
         assert (
             jobj.get_property('key2').ref == nested_jarray.ref
         ), 'pointer must be preserved exactly'
+
+
+def test__class_example(js_ctx, lib):
+    expected_message = 'Hello, world!'
+
+    @ultra.callback('JSObjectGetPropertyCallback')
+    def get_static_prop(
+        ctx_ref: ultra.JSContextRef,
+        obj_ref: ultra.JSObjectRef,
+        property_name_jstr: ultra.JSStringRef,
+        error_jval_ref_ptr: ultra.Pointer[ultra.JSValueRef],
+    ) -> ultra.JSValueRef:
+        assert ctx_ref == js_ctx.ref
+        return ultra.JSValue.new(js_ctx, expected_message).ref
+
+    # Retain FFI pointers as Python references to prevent premature GC
+    static_prop_name_ptr = ultra.new('char[]', b'staticProp')
+    jclass_name_ptr = ultra.new('char[]', b'MyClass')
+    jclass_static_values_ptr = ultra.new(
+        'JSStaticValue[]',
+        [
+            {
+                'name': static_prop_name_ptr,
+                'getProperty': get_static_prop,
+                'setProperty': ultra.NULL,
+                'attributes': (
+                    lib.kJSPropertyAttributeReadOnly
+                    | lib.kJSPropertyAttributeDontDelete
+                ),
+            },
+            {'name': ultra.NULL},
+        ],
+    )
+
+    jclass_def = ultra.new('JSClassDefinition *', lib.kJSClassDefinitionEmpty)
+    jclass_def.className = jclass_name_ptr
+    jclass_def.staticValues = jclass_static_values_ptr
+
+    with contextlib.ExitStack() as exit_stack:
+        jclass_ref = ultra.JSClassCreate(jclass_def)
+        exit_stack.callback(ultra.JSClassRelease, jclass_ref)
+
+        jobj_ref = ultra.JSObjectMake(js_ctx.ref, jclass_ref, ultra.NULL)
+        jobj = ultra.JSObject.new(js_ctx, jobj_ref)
+        js_ctx.get_global_obj().set_property('myobj', jobj)
+
+        jval = js_ctx.evaluate_script('myobj.staticProp')
+        assert jval.to_python() == expected_message

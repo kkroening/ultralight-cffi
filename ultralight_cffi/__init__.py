@@ -4,6 +4,7 @@ from ._bindings import ffi
 from ._ffi import NULL
 from ._ffi import CData
 from ._ffi import Lib
+from ._ffi import Pointer
 from ._ffi import callback
 from ._ffi import load
 from ._ffi import logger
@@ -48,6 +49,7 @@ __all__ = _stubs.__all__ + [
     'logger',
     'new',
     'NULL',
+    'Pointer',
     'typeof',
     'UltralightError',
     'UltralightJSError',

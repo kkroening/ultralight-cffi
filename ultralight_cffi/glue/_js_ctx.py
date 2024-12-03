@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 from .. import _ffi
 from .. import _stubs
+from . import js_error
 from . import js_str
 from dataclasses import dataclass
 from types import TracebackType
@@ -18,11 +20,22 @@ class JSContext:
 class JSGlobalContext(JSContext):
     ref: _stubs.JSGlobalContextRef
 
-    _newly_created: bool = dataclasses.field(compare=False, default=False)
+    _newly_created: bool = dataclasses.field(compare=False, default=False, repr=False)
     """Internally tracks whether this context object refers to a newly created context,
     in order to decide whether to perform ``JSGlobalContextRetain`` in
     :meth:`__enter__`.
     """
+
+    # @property
+    # def base_ref(self) -> _stubs.JSContextRef:
+    #     """The global context reference casted from ``JSGlobalContextRef`` to an
+    #     equivalent base ``JSContextRef``.
+    #
+    #     Some JavaScriptCore functions require a ``JSContextRef`` pointer, and although
+    #     ``JSGlobalContext`` is in fact a ``JSContext``, the CFFI reference needs to be
+    #     explicitly casted to the base type in such cases.
+    #     """
+    #     return _ffi.cast('struct OpaqueJSContext *', self.ref)
 
     def get_name(self) -> str:
         """Gets the name of a global JavaScript context."""
@@ -40,6 +53,42 @@ class JSGlobalContext(JSContext):
         """Sets the name of a global JavaScript context."""
         with js_str.scoped(name) as name_jstr:
             _stubs.JSGlobalContextSetName(self.ref, name_jstr)
+
+    def get_global_obj(self) -> _js_obj.JSObject:
+        jobj_ref = _stubs.JSContextGetGlobalObject(self.ref)
+        return _js_obj.JSObject(jobj_ref, self)
+
+    def evaluate_script(
+        self,
+        script: str,
+        this_obj: _js_obj.JSObject | None = None,
+        source_url: str | None = None,
+        starting_line_num: int = 1,
+    ) -> _js_val.JSValue:
+        if this_obj is not None:
+            this_obj.check_context(self)
+
+        source_url_scope = (
+            js_str.scoped(source_url)
+            if source_url is not None
+            else contextlib.nullcontext(_ffi.NULL)
+        )
+
+        with (
+            js_str.scoped(script) as script_jstr,
+            source_url_scope as source_url_jstr,
+            js_error.scoped(self) as error_jval_ptr,
+        ):
+            result_jval_ref = _stubs.JSEvaluateScript(
+                self.ref,
+                script_jstr,
+                this_obj.ref if this_obj is not None else _ffi.NULL,
+                source_url_jstr,
+                starting_line_num,
+                error_jval_ptr,
+            )
+
+        return _js_val.JSValue.new(self, result_jval_ref)
 
     def get_memory_usage_statistics(self) -> _js_obj.JSObject:
         stats_obj_ref = _stubs.JSGetMemoryUsageStatistics(self.ref)
@@ -92,6 +141,7 @@ class JSGlobalContext(JSContext):
 
 
 from . import _js_obj  # pylint: disable=cyclic-import,wrong-import-position
+from . import _js_val  # pylint: disable=cyclic-import,wrong-import-position
 
 __all__ = [
     'JSContext',

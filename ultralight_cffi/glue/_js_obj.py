@@ -21,7 +21,7 @@ class JSObject(_js_val.JSValue):
     )
 
     ref: _stubs.JSObjectRef
-    ctx: _js_ctx.JSContext
+    ctx: _js_ctx.JSContext = dataclasses.field(repr=False)
 
     _finalizer: weakref.finalize = dataclasses.field(
         repr=False, compare=False, init=False
@@ -113,10 +113,7 @@ class JSObject(_js_val.JSValue):
         existing JavaScript object.
         """
         if isinstance(val, _js_val.JSValue):
-            if val.ctx.ref != ctx.ref:
-                raise RuntimeError(
-                    'Value belongs to a different JavaScriptCore context'
-                )
+            val.check_context(ctx)
             ref = val.ref
         elif (
             isinstance(val, _ffi.CData)
