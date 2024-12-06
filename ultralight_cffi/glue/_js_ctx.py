@@ -77,7 +77,7 @@ class JSGlobalContext(JSContext):
         with (
             js_str.scoped(script) as script_jstr,
             source_url_scope as source_url_jstr,
-            js_error.scoped(self) as error_jval_ptr,
+            js_error.scoped(self) as error_jval_ref_ptr,
         ):
             result_jval_ref = _stubs.JSEvaluateScript(
                 self.ref,
@@ -85,10 +85,14 @@ class JSGlobalContext(JSContext):
                 this_obj.ref if this_obj is not None else _ffi.NULL,
                 source_url_jstr,
                 starting_line_num,
-                error_jval_ptr,
+                error_jval_ref_ptr,
             )
 
-        return _js_val.JSValue.new(self, result_jval_ref)
+        return (
+            _js_val.JSValue.new(self, result_jval_ref)
+            if result_jval_ref is not None
+            else None
+        )
 
     def get_memory_usage_statistics(self) -> _js_obj.JSObject:
         stats_obj_ref = _stubs.JSGetMemoryUsageStatistics(self.ref)

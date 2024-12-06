@@ -28,7 +28,7 @@ class JSObject(_js_val.JSValue):
     )
 
     def __post_init__(self) -> None:
-        if not _stubs.JSValueIsObject(self.ctx.ref, self.ref):
+        if not self.is_obj():
             # The caller somehow constructed a JSObject instance from a reference that's
             # not actually an object; maybe it's at least a JSValue that can be
             # serialized as JSON for an error message.

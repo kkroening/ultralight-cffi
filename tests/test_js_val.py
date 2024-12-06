@@ -1,6 +1,5 @@
 import json
 import math
-import mock
 import pytest
 import ultralight_cffi as ultra
 

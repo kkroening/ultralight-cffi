@@ -51,6 +51,34 @@ class JSValue:
     ref: _stubs.JSValueRef
     ctx: _js_ctx.JSContext = dataclasses.field(repr=False)
 
+    # __cached_js_type: _stubs.JSType | None = dataclasses.field(  # TODO/TBD
+    #     compare=False, default=False, repr=False
+    # )
+    # """Purely internal cache value for the result of ``JSValueGetType`` to be used in
+    # :meth:`is_str`, etc.
+    # """
+
+    def is_null(self) -> bool:
+        return _stubs.JSValueIsNull(self.ctx.ref, self.ref)
+
+    def is_undefined(self) -> bool:
+        return _stubs.JSValueIsUndefined(self.ctx.ref, self.ref)
+
+    def is_bool(self) -> bool:
+        return _stubs.JSValueIsBoolean(self.ctx.ref, self.ref)
+
+    def is_number(self) -> bool:
+        return _stubs.JSValueIsNumber(self.ctx.ref, self.ref)
+
+    def is_str(self) -> bool:
+        return _stubs.JSValueIsString(self.ctx.ref, self.ref)
+
+    def is_obj(self) -> bool:
+        return _stubs.JSValueIsObject(self.ctx.ref, self.ref)
+
+    def is_array(self) -> bool:
+        return _stubs.JSValueIsArray(self.ctx.ref, self.ref)
+
     @overload
     def to_json_str(
         self,
@@ -111,9 +139,7 @@ class JSValue:
         This function ensures that the JS value is either null or undefined, or else
         raises :class:`TypeError`.
         """
-        if not _stubs.JSValueIsNull(
-            self.ctx.ref, self.ref
-        ) and not _stubs.JSValueIsUndefined(self.ctx.ref, self.ref):
+        if not self.is_null() and not self.is_undefined():
             raise TypeError(
                 'Expected JavaScript value to be null or undefined: '
                 f'{self.to_json_str("undefined")}'
@@ -155,11 +181,11 @@ class JSValue:
             programming language level, but they're different kinds of values at the
             runtime level.  Maybe ``strict=True`` should just not be a thing.
         """
-        if not strict and _stubs.JSValueIsUndefined(self.ctx.ref, self.ref):
+        if not strict and self.is_undefined():
             # JSValueToBoolean crashes with undefined values for some reason, despite
             # coercing other types based on truthiness.
             pyval = False
-        elif strict and not _stubs.JSValueIsBoolean(self.ctx.ref, self.ref):
+        elif strict and not self.is_bool():
             raise TypeError(
                 'Expected JavaScript value to be a boolean: '
                 + self.to_json_str('undefined')
@@ -188,7 +214,7 @@ class JSValue:
         strict: bool = True,
     ) -> float:
         """Converts a JavaScript number value into a Python :class:`float`."""
-        if strict and not _stubs.JSValueIsNumber(self.ctx.ref, self.ref):
+        if strict and not self.is_number():
             raise TypeError(
                 'Expected JavaScript value to be a number: '
                 + self.to_json_str('undefined')
@@ -256,19 +282,25 @@ class JSValue:
     ) -> str:
         """Converts a JavaScript string value into a Python :class:`str`."""
 
-        if strict and not _stubs.JSValueIsString(self.ctx.ref, self.ref):
+        if strict and not self.is_str():
             raise TypeError(
                 'Expected JavaScript value to be a string: '
                 + self.to_json_str('undefined')
             )
 
         with js_error.scoped(self.ctx) as error_jval_ptr:
-            jstr = _stubs.JSValueToStringCopy(self.ctx.ref, self.ref, error_jval_ptr)
+            jstr_ref = _stubs.JSValueToStringCopy(
+                self.ctx.ref, self.ref, error_jval_ptr
+            )
+
+        # Note: `JSValueToStringCopy` retains a reference, so avoid using
+        # `js_str.scoped()` here, which would double-retain otherwise.
         try:
-            pyval = js_str.decode(jstr)
+            pyval = js_str.decode(jstr_ref)
         finally:
-            if jstr != _ffi.NULL:
-                _stubs.JSStringRelease(jstr)
+            if jstr_ref != _ffi.NULL:
+                _stubs.JSStringRelease(jstr_ref)
+
         return pyval
 
     @classmethod
@@ -304,12 +336,12 @@ class JSValue:
             depth limit - e.g. by making a mapping of seen objects.
         """
 
-        if not _stubs.JSValueIsObject(self.ctx.ref, self.ref):
+        if not self.is_obj():
             raise TypeError(
                 'Expected JavaScript value to be an object: '
                 + self.to_json_str('undefined')
             )
-        if strict and _stubs.JSValueIsArray(self.ctx.ref, self.ref):
+        if strict and self.is_array():
             # Array objects can technically be converted to a Python dict, but it's
             # likely not intentional, unless explicitly requested via `strict=False`.
             raise TypeError(
@@ -353,7 +385,7 @@ class JSValue:
         max_depth: int = 5,  # TODO: make optional
     ) -> PyList:
         """Converts a JavaScript object value into a Python list (recursively)."""
-        if not _stubs.JSValueIsArray(self.ctx.ref, self.ref):
+        if not self.is_array():
             raise TypeError(
                 'Expected JavaScript value to be an array object: '
                 + self.to_json_str('undefined')
@@ -404,9 +436,18 @@ class JSValue:
             )
         return cls(jarray, ctx)
 
-    def to_python(
+    def to_obj(self) -> _js_obj.JSObject:
+        if not self.is_obj():
+            raise TypeError(
+                'Expected JavaScript value to be an object: '
+                + self.to_json_str('undefined')
+            )
+        return _js_obj.JSObject.new(self.ctx, self.ref)
+
+    def to_python(  # TODO: `to_primitive` instead?
         self,
         *,
+        # mapper: JSPyObjectMapper | None = None,  # defaults to context's obj mapper
         max_depth: int = 5,  # TODO: make optional
         prefer_float: bool = True,
     ) -> PyValue:
@@ -423,7 +464,8 @@ class JSValue:
             case _stubs.kJSTypeBoolean:
                 pyval = self.to_bool()
             case _stubs.kJSTypeObject:
-                if _stubs.JSValueIsArray(self.ctx.ref, self.ref):
+                # TODO: use object mapper
+                if self.is_array():
                     pyval = self.to_list(
                         max_depth=max_depth,
                         prefer_float=prefer_float,
@@ -434,7 +476,7 @@ class JSValue:
                         prefer_float=prefer_float,
                     )
                 else:
-                    pyval = _js_obj.JSObject.new(self.ctx, self.ref)
+                    pyval = self.to_obj()
             case _:
                 raise NotImplementedError(f'Unsupported JavaScript type: {jtype}')
         return pyval

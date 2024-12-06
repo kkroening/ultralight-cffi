@@ -139,5 +139,11 @@ def test__class_example(js_ctx, lib):
         jobj = ultra.JSObject.new(js_ctx, jobj_ref)
         js_ctx.get_global_obj().set_property('myobj', jobj)
 
-        jval = js_ctx.evaluate_script('myobj.staticProp')
-        assert jval.to_python() == expected_message
+        def js_eval(txt):
+            res = js_ctx.evaluate_script(txt)
+            return res.to_python() if res is not None else None
+
+        # js_eval('function throwError() { throw new Error("womp!") }; throwError()')
+
+        actual_message = js_eval('myobj.staticProp')
+        assert actual_message == expected_message
