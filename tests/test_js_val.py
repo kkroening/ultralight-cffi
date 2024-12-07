@@ -4,7 +4,9 @@ import pytest
 import ultralight_cffi as ultra
 
 
-class Test_JSValue__to_json_str:
+class Test_JSValue__str__to_json_str:
+    """Tests :meth:`JSValue.__str__` and :meth:`JSValue.to_json_str`."""
+
     @pytest.mark.parametrize('with_null_pointer', [False, True])
     def test__null(self, js_ctx, with_null_pointer):
         # Note: NULL pointers are distinct from null JS values. `JSValue._new_from_none`
@@ -19,26 +21,26 @@ class Test_JSValue__to_json_str:
         )
         assert ultra.JSValueIsNull(js_ctx.ref, jval.ref) is True
         assert ultra.JSValueIsUndefined(js_ctx.ref, jval.ref) is False
-        actual = jval.to_json_str()
-        assert actual == 'null'
+        assert str(jval) == 'null'
+        assert jval.to_json_str() == 'null'
 
     def test__undefined(self, js_ctx):
         jval = ultra.JSValue._new_from_none(js_ctx, undefined=True)
         assert ultra.JSValueIsNull(js_ctx.ref, jval.ref) is False
         assert ultra.JSValueIsUndefined(js_ctx.ref, jval.ref) is True
-        actual = jval.to_json_str()
-        assert actual is None
+        assert str(jval) == 'undefined'
+        assert jval.to_json_str() is None
 
     def test__bool(self, js_ctx):
         jval = ultra.JSValue._new_from_bool(js_ctx, True)
-        actual = jval.to_json_str()
-        assert actual == 'true'
+        assert str(jval) == 'true'
+        assert jval.to_json_str() == 'true'
 
     def test__float(self, faker, js_ctx):
         pyval = faker.pyfloat(3, 3)  # low precision avoids JSON rounding discrepancies
         jval = ultra.JSValue._new_from_float(js_ctx, pyval)
-        actual = jval.to_json_str()
-        assert actual == str(pyval)
+        assert str(jval) == str(pyval)
+        assert jval.to_json_str() == str(pyval)
 
     def test__nan(self, js_ctx):
         # Note: Dumping NaN in JS (e.g. via `JSON.stringify(NaN)`) gives `"null"` - in
@@ -46,20 +48,52 @@ class Test_JSValue__to_json_str:
         pyval = float('nan')
         jval = ultra.JSValue._new_from_float(js_ctx, pyval)
         assert ultra.JSValueIsNumber(js_ctx.ref, jval.ref) is True
-        actual = jval.to_json_str()
-        assert actual == 'null'
+        assert str(jval) == 'NaN'
+        assert jval.to_json_str() == 'null'
 
     def test__int(self, faker, js_ctx):
         pyval = faker.pyint()
         jval = ultra.JSValue._new_from_int(js_ctx, pyval)
-        actual = jval.to_json_str()
-        assert actual == str(pyval)
+        assert str(jval) == str(pyval)
+        assert jval.to_json_str() == str(pyval)
 
     def test__str(self, faker, js_ctx):
         pyval = faker.sentence()
         jval = ultra.JSValue._new_from_str(js_ctx, pyval)
-        actual = jval.to_json_str()
-        assert actual == json.dumps(pyval)
+        assert str(jval.to_json_str()) == json.dumps(pyval)
+        assert jval.to_json_str() == json.dumps(pyval)
+
+    def test__obj(self, js_ctx):
+        jval = ultra.JSValue(
+            ultra.JSObjectMake(js_ctx.ref, ultra.NULL, ultra.NULL), js_ctx
+        )
+        assert str(jval) == '[object Object]'
+        assert jval.to_json_str() == '{}'
+
+        with ultra.js_error.scoped(js_ctx) as error_jval_ptr:
+            with ultra.js_str.scoped('__proto__') as prop_name_jstr:
+                jobj_ref = ultra.JSObjectGetProperty(
+                    js_ctx.ref, jval.ref, prop_name_jstr, error_jval_ptr
+                )
+        with ultra.js_error.scoped(js_ctx) as error_jval_ptr:
+            with ultra.js_str.scoped('constructor') as prop_name_jstr:
+                jobj_ref = ultra.JSObjectGetProperty(
+                    js_ctx.ref, jobj_ref, prop_name_jstr, error_jval_ptr
+                )
+        jval = ultra.JSValue(jobj_ref, js_ctx)
+        assert str(jval) == 'function Object() {\n    [native code]\n}'
+        assert jval.to_json_str() == None
+
+    def test__list(self, js_ctx):
+        jval_refs = [ultra.JSObjectMake(js_ctx.ref, ultra.NULL, ultra.NULL)]
+        jvals_ptr = ultra.new('JSValueRef[]', jval_refs)
+        with ultra.js_error.scoped(js_ctx) as error_jval_ptr:
+            jarray_ref = ultra.JSObjectMakeArray(
+                js_ctx.ref, len(jval_refs), jvals_ptr, error_jval_ptr
+            )
+        jarray = ultra.JSValue(jarray_ref, js_ctx)
+        assert str(jarray) == '[object Object]'
+        assert jarray.to_json_str() == '[{}]'
 
 
 class Test_JSValue__new_from_none__to_none:

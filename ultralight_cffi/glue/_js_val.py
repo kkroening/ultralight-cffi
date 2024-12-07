@@ -58,6 +58,22 @@ class JSValue:
     # :meth:`is_str`, etc.
     # """
 
+    def __str__(self) -> str:
+        with js_error.scoped(self.ctx) as error_jval_ptr:
+            jstr = _stubs.JSValueToStringCopy(
+                self.ctx.ref,
+                self.ref,
+                error_jval_ptr,
+            )
+        if jstr == _ffi.NULL:
+            pyval = 'NULL'  # TBD
+        else:
+            try:
+                pyval = js_str.decode(jstr)
+            finally:
+                _stubs.JSStringRelease(jstr)
+        return pyval
+
     def is_null(self) -> bool:
         return _stubs.JSValueIsNull(self.ctx.ref, self.ref)
 
@@ -431,10 +447,10 @@ class JSValue:
         jvals_ptr = _ffi.new('JSValueRef[]', jval_refs)
 
         with js_error.scoped(ctx) as error_jval_ptr:
-            jarray = _stubs.JSObjectMakeArray(
+            jarray_ref = _stubs.JSObjectMakeArray(
                 ctx.ref, len(jval_refs), jvals_ptr, error_jval_ptr
             )
-        return cls(jarray, ctx)
+        return cls(jarray_ref, ctx)
 
     def to_obj(self) -> _js_obj.JSObject:
         if not self.is_obj():
