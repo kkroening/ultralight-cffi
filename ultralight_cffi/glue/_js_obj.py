@@ -93,6 +93,11 @@ class JSObject(_js_val.JSValue):
             _stubs.JSPropertyNameArrayRelease(names_array)
         return names
 
+    def get_prototype(self) -> _js_val.JSValue:
+        return _js_val.JSValue(
+            _stubs.JSObjectGetPrototype(self.ctx.ref, self.ref), self.ctx
+        )
+
     def to_shallow_dict(self) -> dict[str, _js_val.JSValue]:
         """Converts a JavaScript object into a Python dictionary shallowly - i.e.
         without recursively converting the values from :class:`JSValueRef` /

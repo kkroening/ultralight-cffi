@@ -97,6 +97,7 @@ class Test_JSObject__new:
 
 def test__class_example(js_ctx, lib):
     expected_message = 'Hello, world!'
+    expected_function_result = 'Hello from static function!'
 
     @ultra.callback('JSObjectGetPropertyCallback')
     def get_static_prop(
@@ -108,9 +109,34 @@ def test__class_example(js_ctx, lib):
         assert ctx_ref == js_ctx.ref
         return ultra.JSValue.new(js_ctx, expected_message).ref
 
+    @ultra.callback('JSObjectCallAsFunctionCallback')
+    def static_function_callback(
+        ctx_ref: ultra.JSContextRef,
+        func_obj_ref: ultra.JSObjectRef,
+        this_obj_ref: ultra.JSObjectRef,
+        argument_count: int,
+        arguments: ultra.Pointer[ultra.JSValueRef],
+        error_jval_ref_ptr: ultra.Pointer[ultra.JSValueRef],
+    ) -> ultra.JSValueRef:
+        assert ctx_ref == js_ctx.ref
+        return ultra.JSValue.new(js_ctx, expected_function_result).ref
+
+    @ultra.callback('JSObjectCallAsConstructorCallback')
+    def ctor_callback(
+        ctx_ref: ultra.JSContextRef,
+        ctor_ref: ultra.JSObjectRef,
+        argument_count: int,
+        arguments: ultra.Pointer[ultra.JSValueRef],
+        error_jval_ref_ptr: ultra.Pointer[ultra.JSValueRef],
+    ) -> ultra.JSObjectRef:
+        assert ctx_ref == js_ctx.ref
+        return ultra.JSObjectMake(ctx_ref, jclass_ref, ultra.NULL)
+
     # Retain FFI pointers as Python references to prevent premature GC
     static_prop_name_ptr = ultra.new('char[]', b'staticProp')
+    static_function_name_ptr = ultra.new('char[]', b'staticFunc')
     jclass_name_ptr = ultra.new('char[]', b'MyClass')
+
     jclass_static_values_ptr = ultra.new(
         'JSStaticValue[]',
         [
@@ -127,15 +153,37 @@ def test__class_example(js_ctx, lib):
         ],
     )
 
+    jclass_static_functions_ptr = ultra.new(
+        'JSStaticFunction[]',
+        [
+            {
+                'name': static_function_name_ptr,
+                'callAsFunction': static_function_callback,
+                'attributes': lib.kJSPropertyAttributeDontDelete,
+            },
+            {'name': ultra.NULL},
+        ],
+    )
+
     jclass_def = ultra.new('JSClassDefinition *', lib.kJSClassDefinitionEmpty)
     jclass_def.className = jclass_name_ptr
     jclass_def.staticValues = jclass_static_values_ptr
+    jclass_def.staticFunctions = jclass_static_functions_ptr
 
     with contextlib.ExitStack() as exit_stack:
         jclass_ref = ultra.JSClassCreate(jclass_def)
         exit_stack.callback(ultra.JSClassRelease, jclass_ref)
 
-        jobj_ref = ultra.JSObjectMake(js_ctx.ref, jclass_ref, ultra.NULL)
+        jctor_ref = ultra.JSObjectMakeConstructor(js_ctx.ref, jclass_ref, ctor_callback)
+        jctor = ultra.JSObject.new(js_ctx, jctor_ref)
+        js_ctx.get_global_obj().set_property('MyObj', jctor)
+
+        arg_jvals_ref = ultra.new('JSValueRef[]', [])
+        with ultra.js_error.scoped(js_ctx) as error_jobj_ref:
+            jobj_ref = ultra.JSObjectCallAsConstructor(
+                js_ctx.ref, jctor_ref, 0, arg_jvals_ref, error_jobj_ref
+            )
+
         jobj = ultra.JSObject.new(js_ctx, jobj_ref)
         js_ctx.get_global_obj().set_property('myobj', jobj)
 
@@ -147,3 +195,6 @@ def test__class_example(js_ctx, lib):
 
         actual_message = js_eval('myobj.staticProp')
         assert actual_message == expected_message
+
+        actual_function_result = js_eval('myobj.staticFunc()')
+        assert actual_function_result == expected_function_result
