@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 from .. import _ffi
 from .. import _stubs
+from . import _js_class
 from . import _js_ctx
 from . import _js_obj
+from . import _js_val
 from . import js_error
 from . import js_str
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Self
 from typing import TypeAlias
 
-FunctionCallable: TypeAlias = Callable[
+FunctionCallable: TypeAlias = Callable[  # TODO: consolidate
     [
         _js_ctx.JSContext,  # ctx
         _stubs.JSObjectRef,  # function
@@ -22,6 +26,77 @@ FunctionCallable: TypeAlias = Callable[
 ]
 
 
+JSFunctionCallable: TypeAlias = Callable[
+    [_js_obj.JSObject, _js_obj.JSObject, list[_js_val.JSValue]],
+    _js_val.JSValue,
+]
+
+
+# @dataclass(frozen=True)
+# class JSFunctionState:
+#     handler: JSFunctionCallable
+
+
+@dataclass(frozen=True)
+class JSFunctionClass(_js_class.JSClass):
+    _handler_map: dict[_stubs.JSObjectRef, JSFunctionCallable] = dataclasses.field(
+        compare=False,
+        default_factory=dict,
+        repr=False,
+    )
+    """A mapping of instantiated JS object refs to corresponding handler functions.
+
+    Note:
+        It might seem odd to track this info on the :class:`JSFunctionClass` rather than
+        having a subclass of :class:`JSObject` to represent function instances, but
+        actually :class:`JSObject` is just a protected *view* of an object whose
+        lifetime is owned by the JavaScript runtime.  The separation is a byproduct of
+        the fundamental reality of integrating two different garbage collected runtimes
+        (Python and JavaScript), and without such a separation there's a chicken and
+        egg situation between the Python side deciding when to stop protecting a JS
+        object reference so that the JS runtime can garbage collect the object, vs when
+        the internal Python state data (handler function references, in this case) can
+        be freed.  In other words, the :class:`JSObject` on the Python side needs to be
+        destroyed before the underlying JavaScript object can potentially be finalized,
+        which in turn causes :meth:`JSFunctionClass._finalize` to be fired, allowing the
+        internal Python state to be released.
+    """
+
+    def instantiate(
+        self,
+        ctx: _js_ctx.JSContext,
+        handler: JSFunctionCallable,
+    ) -> _js_obj.JSObject:
+        ref = _stubs.JSObjectMake(ctx.ref, self.ref, _ffi.NULL)
+        self._handler_map[ref] = handler
+        return _js_obj.JSObject.new(ctx, ref)
+
+    def _finalize(
+        self,
+        obj_ref: _stubs.JSObjectRef,
+    ) -> None:
+        # TBD: this assert could be more lenient, but *shouldn't* ever fail, in theory
+        assert obj_ref in self._handler_map, (
+            f'Attempting to finalize a {type(self).__qualname__} instance missing from '
+            'the internal state mapping'
+        )
+        del self._handler_map[obj_ref]
+
+    def _call_as_function(
+        self,
+        func_obj: _js_obj.JSObject,
+        this_obj: _js_obj.JSObject,
+        arg_vals: list[_js_val.JSValue],
+    ) -> _js_val.JSValue:
+        assert func_obj.ref in self._handler_map, (
+            f'Attempting to call a {type(self).__qualname__} instance missing from '
+            'the internal state mapping'
+        )
+        handler = self._handler_map[func_obj.ref]
+        return handler(func_obj, this_obj, arg_vals)
+
+
+@dataclass(frozen=True)
 class JSFunction(_js_obj.JSObject):  # pylint: disable=abstract-method
     @classmethod
     def new_from_script(
@@ -122,13 +197,9 @@ class JSFunction(_js_obj.JSObject):  # pylint: disable=abstract-method
                 )
 
                 error_message = f'Error in JS->Python callback: {str(error)}'
-                with js_str.scoped(error_message) as error_message_jstr:
-                    error_message_jval = _stubs.JSValueMakeString(
-                        ctx.ref, error_message_jstr
-                    )
-
-                error_jval_ref[0] = _js_obj.new_error(ctx, [error_message_jval])
-                result = _ffi.NULL  # TBD
+                error_message_jval = _js_val.JSValue.new(ctx, error_message)
+                error_jval_ref[0] = _js_obj.new_error(ctx, [error_message_jval]).ref
+                result = _ffi.NULL
 
             return result
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import math
 from .. import _ffi
 from .. import _stubs
@@ -148,6 +149,9 @@ class JSValue:
             finally:
                 _stubs.JSStringRelease(jstr)
         return pyval
+
+    def to_json(self) -> Any:
+        return json.loads(self.to_json_str('null'))
 
     def to_none(self) -> None:
         """Converts a JavaScript null or undefined value into a Python ``None`` value.
@@ -452,7 +456,11 @@ class JSValue:
             )
         return cls(jarray_ref, ctx)
 
-    def to_obj(self) -> _js_obj.JSObject:
+    def to_obj(
+        self,
+        # *,
+        # strict: bool = True,  # TODO
+    ) -> _js_obj.JSObject:
         if not self.is_obj():
             raise TypeError(
                 'Expected JavaScript value to be an object: '

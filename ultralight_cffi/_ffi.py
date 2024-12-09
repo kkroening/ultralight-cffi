@@ -8,6 +8,7 @@ import platform
 import types
 from . import _bindings
 from collections.abc import Callable
+from collections.abc import MutableSequence
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Generic
@@ -59,9 +60,9 @@ class Pointer(Generic[_T]):  # TODO: move to `_ffi.py`
         def __getitem__(self, key: int) -> _T: ...
 
         @overload
-        def __getitem__(self, key: slice) -> Pointer[_T]: ...
+        def __getitem__(self, key: slice) -> MutableSequence[_T]: ...
 
-        def __getitem__(self, key: int | slice) -> _T | Pointer[_T]: ...
+        def __getitem__(self, key: int | slice) -> _T | MutableSequence[_T]: ...
 
         def __setitem__(self, key: int, value: _T) -> None: ...
 
@@ -109,6 +110,18 @@ if TYPE_CHECKING:  # CFFI type annotation workarounds
 
     @overload
     def new(
+        cdecl: Literal['char[]'],
+        init: bytes,
+    ) -> bytes: ...  # TBD: should maybe be `Pointer[_stubs.C_String]`
+
+    @overload
+    def new(
+        cdecl: Literal['JSClassDefinition *'],
+        init: Any = ...,
+    ) -> Pointer[_stubs.JSClassDefinition]: ...
+
+    @overload
+    def new(
         cdecl: Literal['JSStringRef[]'],
         init: list[_stubs.JSStringRef | None],
     ) -> Pointer[_stubs.JSStringRef]: ...
@@ -136,19 +149,23 @@ if TYPE_CHECKING:  # CFFI type annotation workarounds
         cdecl: str,
         init: Any = ...,
     ) -> (
-        Pointer[_stubs.JSStringRef]
+        CData
+        | bytes
+        | Pointer[_stubs.JSClassDefinition]
+        | Pointer[_stubs.JSStringRef]
         | Pointer[_stubs.JSValueRef]
         | Pointer[_stubs.ULString]
-        | CData
     ): ...
 
     def new(
         cdecl: str, init: Any = None
     ) -> (
-        Pointer[_stubs.JSStringRef]
+        CData
+        | bytes
+        | Pointer[_stubs.JSClassDefinition]
+        | Pointer[_stubs.JSStringRef]
         | Pointer[_stubs.JSValueRef]
         | Pointer[_stubs.ULString]
-        | CData
     ):
         """Equivalent to ``ffi.new(...)`` but with proper static typing, based on the
         ``cdecl`` argument.

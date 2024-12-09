@@ -15,6 +15,9 @@ from typing import Self
 class JSContext:
     ref: _stubs.JSContextRef
 
+    def garbage_collect(self) -> None:
+        _stubs.JSGarbageCollect(self.ref)
+
 
 @dataclass(frozen=True)
 class JSGlobalContext(JSContext):

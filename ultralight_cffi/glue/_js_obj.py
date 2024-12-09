@@ -27,7 +27,18 @@ class JSObject(_js_val.JSValue):
         repr=False, compare=False, init=False
     )
 
+    @classmethod
+    def _finalize_py(
+        cls,
+        ctx_ref: _stubs.JSContextRef,
+        ref: _stubs.JSObjectRef,
+    ) -> None:
+        # _logger.debug('%s finalize %r', cls.__qualname__, ref)
+        _stubs.JSValueUnprotect(ctx_ref, ref)
+
     def __post_init__(self) -> None:
+        # _logger.debug('%s finalize %r', type(self).__qualname__, ref)
+
         if not self.is_obj():
             # The caller somehow constructed a JSObject instance from a reference that's
             # not actually an object; maybe it's at least a JSValue that can be
@@ -46,7 +57,8 @@ class JSObject(_js_val.JSValue):
         object.__setattr__(
             self,
             '_finalizer',
-            weakref.finalize(self, _stubs.JSValueUnprotect, self.ctx.ref, self.ref),
+            # weakref.finalize(self, _stubs.JSValueUnprotect, self.ctx.ref, self.ref),
+            weakref.finalize(self, self._finalize_py, self.ctx.ref, self.ref),
         )
 
     def get_property(
@@ -212,30 +224,26 @@ class JSObject(_js_val.JSValue):
         raise NotImplementedError()
 
 
-def new_error(
+def new_error(  # TODO: move elsewhere
     ctx: _js_ctx.JSContext,
-    arg_jvals: list[_stubs.JSValueRef],
-) -> _stubs.JSObjectRef:
+    arg_vals: list[_js_val.JSValue],
+) -> JSObject:
     """Creates a new JavaScript Error object.
 
     Note:
         It's technically possible to encounter a nested error in the process of
         constructing an error, in which case the nested error is raised as a Python
         exception, rather than returning an error JS object.
-
-    Warning:
-        It's the caller's responsibility to ensure that the resulting JS object is not
-        prematurely garbage collected by the JavaScript runtime.
     """
-    arg_jvals_ref = _ffi.new('JSValueRef[]', arg_jvals)
+    arg_refs_ptr = _ffi.new('JSValueRef[]', [x.ref for x in arg_vals])
     with js_error.scoped(ctx) as nested_error_jobj_ref:
-        error_jobj = _stubs.JSObjectMakeError(
+        error_ref = _stubs.JSObjectMakeError(
             ctx.ref,
-            len(arg_jvals),
-            arg_jvals_ref,
+            len(arg_vals),
+            arg_refs_ptr,
             nested_error_jobj_ref,
         )
-    return error_jobj
+    return JSObject(error_ref, ctx)
 
 
 __all__ = [

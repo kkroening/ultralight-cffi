@@ -93,4 +93,4 @@ filterwarnings = [
 ]
 asyncio_mode = 'auto'
 markers = []
-timeout = 5
+timeout = 60

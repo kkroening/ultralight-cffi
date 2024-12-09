@@ -165,13 +165,14 @@ def test__class_example(js_ctx, lib):
         ],
     )
 
-    jclass_def = ultra.new('JSClassDefinition *', lib.kJSClassDefinitionEmpty)
+    jclass_def_ptr = ultra.new('JSClassDefinition *', lib.kJSClassDefinitionEmpty)
+    jclass_def = jclass_def_ptr[0]
     jclass_def.className = jclass_name_ptr
     jclass_def.staticValues = jclass_static_values_ptr
     jclass_def.staticFunctions = jclass_static_functions_ptr
 
     with contextlib.ExitStack() as exit_stack:
-        jclass_ref = ultra.JSClassCreate(jclass_def)
+        jclass_ref = ultra.JSClassCreate(jclass_def_ptr)
         exit_stack.callback(ultra.JSClassRelease, jclass_ref)
 
         jctor_ref = ultra.JSObjectMakeConstructor(js_ctx.ref, jclass_ref, ctor_callback)

@@ -12,8 +12,10 @@ from ._ffi import new
 from ._ffi import typeof
 from ._ffi import unpack
 from ._surface import CustomSurface
+from .glue import JSClass
 from .glue import JSContext
 from .glue import JSFunction
+from .glue import JSFunctionClass
 from .glue import JSGlobalContext
 from .glue import JSObject
 from .glue import JSValue
@@ -37,8 +39,10 @@ __all__ = _stubs.__all__ + [
     'CustomSurface',
     'ffi',
     'glue',
+    'JSClass',
     'JSContext',
     'JSFunction',
+    'JSFunctionClass',
     'JSGlobalContext',
     'JSObject',
     'JSValue',
